@@ -16,3 +16,7 @@ attachments
 .grok/status
 .grok/skills
 .grok/references
+.ssh
+id_*
+*.pem
+

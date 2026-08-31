@@ -158,6 +158,19 @@ export function isToday(iso: string, now = new Date()): boolean {
   return isSameDay(parseDate(iso), now);
 }
 
+export function isFuture(iso: string, now = new Date()): boolean {
+  return iso > toISODate(now);
+}
+
+export function nearbySheets(around = new Date(), back = 3, forward = 1): SheetKey[] {
+  const y = around.getFullYear();
+  const keys: SheetKey[] = [];
+  for (let year = y - back; year <= y + forward; year++) {
+    keys.push(`${year}-H1` as SheetKey, `${year}-H2` as SheetKey);
+  }
+  return keys;
+}
+
 export function monthStartsInSheet(key: string): { month: number; iso: string }[] {
   const { start, end } = sheetRange(key);
   const out: { month: number; iso: string }[] = [];

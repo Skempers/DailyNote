@@ -20,9 +20,6 @@ export function GuestLogWorkspace({
         draftNs: "guest",
         guest: true,
         patchSnap: guest.setSnap,
-        importDemo: () => {
-          guest.importDemo();
-        },
         search: (q) => localSearch(guest.snap, q),
       }}
     />

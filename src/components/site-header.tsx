@@ -4,6 +4,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { AccountMenu } from "@/components/account-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useWebdavAutoBackup } from "@/lib/slog/use-webdav-auto";
 
 export function SiteHeader({ solid = false }: { solid?: boolean }) {
   return (
@@ -18,6 +19,12 @@ export function SiteHeader({ solid = false }: { solid?: boolean }) {
         <span className="text-xs tracking-[0.2em] text-muted-foreground">航海日志</span>
       </Link>
       <nav className="ml-auto flex items-center gap-2">
+        <Link
+          to="/backup"
+          className="px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          导出/实时备份
+        </Link>
         <Link
           to="/"
           hash="method"
@@ -40,6 +47,7 @@ export function SiteHeader({ solid = false }: { solid?: boolean }) {
 
 function AuthSlot() {
   const { user, isPending } = useCurrentUserState();
+  useWebdavAutoBackup();
   if (isPending) return <div className="h-10 w-24 animate-pulse rounded-md bg-muted" />;
   if (user) {
     return (

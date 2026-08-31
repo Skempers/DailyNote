@@ -146,22 +146,23 @@ export function DayEditor({
     persist({ day: nextDay, entries, images }, immediate);
   }
 
-  function addEntry() {
+  function addEntry(nextKind: EntryKind = kind) {
     const text = body.trim();
     if (!text) return;
     const e: LogEntry = {
       id: crypto.randomUUID(),
       date: iso,
-      kind,
+      kind: nextKind,
       body: text,
       marker,
       emphasis,
-      starred: kind === "pride",
+      starred: nextKind === "pride",
       sortOrder: entries.length,
     };
     const next = { day, entries: [...entries, e], images };
     setEntries(next.entries);
     setBody("");
+    setKind(nextKind);
     persist(next, true);
   }
 
@@ -409,7 +410,10 @@ export function DayEditor({
 
   const entriesBox = (
     <section>
-      <Label>标签条目</Label>
+      <Label>分类小条</Label>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        不是点一下字就上去。先选类型（决定颜色），写下内容，再点写入。小图标会出现在格子同一行。
+      </p>
       <ul className="mt-1.5 space-y-1">
         {entries.map((e) => (
           <li key={e.id} className="flex items-start gap-2 rounded-md bg-muted/60 px-2 py-1.5 text-sm">
@@ -429,7 +433,7 @@ export function DayEditor({
         <Textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="电影、航班、课表… 分类写一条"
+          placeholder={ENTRY_KINDS.find((k) => k.id === kind)?.hint ?? "写一条，再点写入格子"}
           className="min-h-14"
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addEntry();
@@ -441,7 +445,10 @@ export function DayEditor({
               key={k.id}
               type="button"
               title={k.hint}
-              onClick={() => setKind(k.id)}
+              onClick={() => {
+                setKind(k.id);
+                if (body.trim()) addEntry(k.id);
+              }}
               className={cn(
                 "rounded-full px-2 py-0.5 text-[11px]",
                 kind === k.id ? "bg-foreground text-background" : "bg-muted text-muted-foreground",
@@ -451,6 +458,9 @@ export function DayEditor({
             </button>
           ))}
         </div>
+        <p className="text-[11px] text-muted-foreground">
+          当前：{ENTRY_KINDS.find((k) => k.id === kind)?.label} · {ENTRY_KINDS.find((k) => k.id === kind)?.hint}
+        </p>
         <div className="flex flex-wrap items-center gap-1">
           {MARKERS.map((m) => (
             <button
@@ -482,9 +492,9 @@ export function DayEditor({
             ))}
           </div>
         </div>
-        <Button type="button" size="sm" onClick={addEntry} className="w-full">
+        <Button type="button" size="sm" onClick={() => addEntry()} className="w-full">
           <Plus className="size-3.5" />
-          加一条标签
+          写入格子
         </Button>
       </div>
     </section>

@@ -1,7 +1,7 @@
 import { Star } from "lucide-react";
 import { memo } from "react";
 import { ENTRY_CLASS, headerFill, TONE_COLORS } from "@/lib/slog/colors";
-import { inSheet, isToday, monthOf } from "@/lib/slog/calendar";
+import { inSheet, isFuture, isToday, monthOf } from "@/lib/slog/calendar";
 import type { DayRecord, LogEntry, LogImage, LogSpan, ViewMode } from "@/lib/slog/types";
 import { cn } from "@/lib/utils";
 import { MarkerIcon } from "./markers";
@@ -34,6 +34,7 @@ export const DayCell = memo(function DayCell({
   const header = headerFill(tone, month);
   const secondary = day?.secondaryTone && day.secondaryTone !== "month" ? day.secondaryTone : null;
   const today = isToday(iso);
+  const future = isFuture(iso);
   const inSpan = spans.find((s) => iso >= s.startDate && iso <= s.endDate);
   const dateNum = Number(iso.slice(8, 10));
   const wash = tone === "month" ? undefined : TONE_COLORS[tone].wash;
@@ -89,7 +90,13 @@ export const DayCell = memo(function DayCell({
         inSpan && "border-l-2",
       )}
       style={{
-        background: wash ?? "var(--color-card)",
+        background: wash
+          ? future
+            ? `color-mix(in oklab, ${wash} 94%, var(--color-muted))`
+            : wash
+          : future
+            ? "color-mix(in oklab, var(--color-card) 93%, var(--color-muted))"
+            : "var(--color-card)",
         borderLeftColor: inSpan ? `var(--color-${inSpan.color})` : undefined,
       }}
     >
@@ -119,6 +126,10 @@ export const DayCell = memo(function DayCell({
             <span className="shrink-0 rounded-full bg-primary px-1 text-[9px] leading-5 text-primary-foreground">
               今
             </span>
+          ) : future ? (
+            <span className="shrink-0 text-[11px] leading-none text-foreground/40" aria-hidden>
+              ✧
+            </span>
           ) : null}
         </div>
       </div>
@@ -138,12 +149,12 @@ export const DayCell = memo(function DayCell({
           </p>
         ) : null}
         {entries.length ? (
-          <ul className="flex min-w-0 flex-col gap-0.5">
+          <ul className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-0.5">
             {entries.slice(0, entryClamp).map((e) => (
               <li
                 key={e.id}
                 className={cn(
-                  "flex min-w-0 items-start gap-0.5 break-all whitespace-pre-wrap text-[11px] leading-snug",
+                  "inline-flex max-w-full min-w-0 items-start gap-0.5 break-all whitespace-pre-wrap text-[11px] leading-snug",
                   density === "half" && "line-clamp-2",
                   density === "month" && "line-clamp-3",
                   compact && "line-clamp-1",

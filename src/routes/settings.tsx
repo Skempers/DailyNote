@@ -9,9 +9,10 @@ import { RedirectToSignIn } from "@/lib/auth/gates";
 import { authClient, authEnabled } from "@/lib/auth/client";
 import { emailAndPasswordEnabled } from "@/lib/auth/email-password";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { loadSettings, loadUsage, saveSettings } from "@/lib/slog/api";
+import { loadSettings, loadUsage, saveSettings, exportBackup } from "@/lib/slog/api";
 import { compressAvatarFile } from "@/lib/slog/compress-image";
 import { formatBytes } from "@/lib/slog/format";
+import { downloadJson } from "@/lib/slog/export";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/settings")({ component: SettingsPage });
@@ -266,6 +267,25 @@ function SettingsBody() {
           <p className="mt-1 text-xs text-muted-foreground">
             {usage ? `${usage.imageCount} 张照片 · ${usage.dayCount} 天有记录` : "正在统计…"}
           </p>
+          <Button
+            className="mt-3"
+            variant="outline"
+            type="button"
+            disabled={busy === "backup"}
+            onClick={() => {
+              setBusy("backup");
+              setHint(null);
+              void exportBackup()
+                .then((data) => {
+                  downloadJson(`slog-backup-${data.exportedAt.slice(0, 10)}.json`, data);
+                  setHint(`已导出 ${data.days.length} 天、${data.images.length} 张照片。`);
+                })
+                .catch((err) => setHint(err instanceof Error ? err.message : "导出失败"))
+                .finally(() => setBusy(null));
+            }}
+          >
+            {busy === "backup" ? "导出中…" : "导出全部日记（JSON）"}
+          </Button>
         </section>
       </main>
     </div>

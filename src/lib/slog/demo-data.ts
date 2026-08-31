@@ -397,19 +397,7 @@ export function emptySnapshot(sheetKey: string, todayIso: string): LogSnapshot {
       ],
     },
     images: {},
-    notes: [
-      {
-        id: "welcome-n1",
-        sheetKey,
-        weekStart: null,
-        kind: "quote",
-        title: "人不能二过",
-        body: "做这张表，是因为曾经把马拉松和志愿选在同一天。提前半年写下来，选择权就在自己手里。",
-        tone: "first",
-        emphasized: true,
-        sortOrder: 0,
-      },
-    ],
+    notes: [],
     spans: [],
   };
 }

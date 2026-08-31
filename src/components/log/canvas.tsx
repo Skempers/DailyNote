@@ -18,12 +18,16 @@ export function SemesterCanvas({
   selected,
   onSelect,
   onAddWeekNote,
+  onEditNote,
+  onAddSheetNote,
   density = "half",
 }: {
   snap: LogSnapshot;
   selected: string | null;
   onSelect: (iso: string) => void;
   onAddWeekNote: (mondayIso: string) => void;
+  onEditNote?: (note: LogNote) => void;
+  onAddSheetNote?: () => void;
   density?: ViewMode;
 }) {
   const weeks = weeksOfSheet(snap.sheetKey);
@@ -31,13 +35,21 @@ export function SemesterCanvas({
 
   return (
     <div className="min-w-0 overflow-x-auto">
-      {sheetNotes.length ? (
-        <div className="mb-3 grid gap-2 md:grid-cols-3">
-          {sheetNotes.map((n) => (
-            <SheetNoteCard key={n.id} note={n} />
-          ))}
-        </div>
-      ) : null}
+      <div className="mb-3 grid gap-2 md:grid-cols-3">
+        {sheetNotes.map((n) => (
+          <SheetNoteCard key={n.id} note={n} onEdit={onEditNote} />
+        ))}
+        {onAddSheetNote ? (
+          <button
+            type="button"
+            onClick={onAddSheetNote}
+            className="rounded-lg border border-dashed border-border bg-card/60 p-3 text-left text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground"
+          >
+            <p className="text-[10px] font-medium tracking-wide uppercase">给自己的话</p>
+            <p className="mt-1">写一句放在表头。点卡片可改、可删。</p>
+          </button>
+        ) : null}
+      </div>
 
       <div
         className="grid w-full min-w-[72rem] overflow-hidden rounded-lg border border-border bg-card"
@@ -214,10 +226,12 @@ function locationForWeek(days: string[], snap: LogSnapshot) {
   return null;
 }
 
-function SheetNoteCard({ note }: { note: LogNote }) {
+function SheetNoteCard({ note, onEdit }: { note: LogNote; onEdit?: (note: LogNote) => void }) {
   return (
-    <aside
-      className="rounded-lg p-3 shadow-border"
+    <button
+      type="button"
+      onClick={() => onEdit?.(note)}
+      className="rounded-lg p-3 text-left shadow-border transition-opacity hover:opacity-90"
       style={
         note.tone && note.tone !== "month"
           ? { background: TONE_COLORS[note.tone].wash, color: TONE_COLORS[note.tone].fg }
@@ -230,8 +244,8 @@ function SheetNoteCard({ note }: { note: LogNote }) {
       {note.title ? (
         <h3 className="mt-1 font-display text-base font-medium leading-snug">{note.title}</h3>
       ) : null}
-      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">{note.body}</p>
-    </aside>
+      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">{note.body || "（空）"}</p>
+    </button>
   );
 }
 

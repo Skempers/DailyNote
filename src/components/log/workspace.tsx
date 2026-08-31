@@ -5,7 +5,6 @@ import {
   MapPin,
   Palette,
   Search,
-  Sparkles,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -35,6 +34,7 @@ import {
   formatWeekRange,
   inSheet,
   monthStartsInSheet,
+  nearbySheets,
   parseSheetKey,
   sheetLabel,
   shiftWeek,
@@ -62,9 +62,8 @@ export type LogAdapter = {
   saveImage?: (img: LogImage) => Promise<LogImage | void> | LogImage | void;
   deleteImage?: (id: string) => Promise<void> | void;
   saveNote?: (n: LogNote) => Promise<void> | void;
+  deleteNote?: (id: string) => Promise<void> | void;
   saveSpan?: (s: LogSpan) => Promise<void> | void;
-  importDemo?: () => Promise<unknown> | void;
-  importing?: boolean;
   search?: (q: string) => Promise<SearchHit[]> | SearchHit[];
   loadDayImages?: (date: string) => Promise<LogImage[]>;
   patchSnap?: (mut: (s: LogSnapshot) => LogSnapshot) => void;
@@ -97,6 +96,7 @@ export function LogWorkspace({
   const [searchOpen, setSearchOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState<Partial<LogNote> | null>(null);
+  const [sheetPickOpen, setSheetPickOpen] = useState(false);
   const [spanOpen, setSpanOpen] = useState(false);
   const [view, setView] = useState<ViewMode>("half");
   const [mobileMonth, setMobileMonth] = useState(() =>
@@ -359,13 +359,25 @@ export function LogWorkspace({
       await adapter.saveNote(n);
       return;
     }
-    demo.setSnap((s) => {
+    const mut = (s: LogSnapshot): LogSnapshot => {
       const idx = s.notes.findIndex((x) => x.id === n.id);
       const notes = [...s.notes];
       if (idx >= 0) notes[idx] = n;
       else notes.push(n);
       return { ...s, notes };
+    };
+    if (adapter?.patchSnap) adapter.patchSnap(mut);
+    else demo.setSnap(mut);
+  }
+
+  async function handleDeleteNote(id: string) {
+    if (adapter?.deleteNote) await adapter.deleteNote(id);
+    const mut = (s: LogSnapshot): LogSnapshot => ({
+      ...s,
+      notes: s.notes.filter((x) => x.id !== id),
     });
+    if (adapter?.patchSnap) adapter.patchSnap(mut);
+    else demo.setSnap(mut);
   }
 
   async function handleSaveSpan(sp: LogSpan) {
@@ -374,6 +386,13 @@ export function LogWorkspace({
       return;
     }
     demo.setSnap((s) => ({ ...s, spans: [...s.spans, sp] }));
+  }
+
+  function goToday() {
+    const today = toISODate(new Date());
+    const key = currentSheetKey();
+    if (key !== sheetKey) onSheetChange(key);
+    pickDay(today);
   }
 
   const onQuery = useCallback(
@@ -392,12 +411,6 @@ export function LogWorkspace({
 
   function pickHit(hit: SearchHit) {
     if (hit.date.length === 10) pickDay(hit.date);
-  }
-
-  async function loadExample() {
-    if (adapter?.importDemo) await adapter.importDemo();
-    else demo.importDemo();
-    onSheetChange("2024-H2");
   }
 
   const { year, half } = parseSheetKey(sheetKey);
@@ -538,6 +551,20 @@ export function LogWorkspace({
               sortOrder: 0,
             })
           }
+          onEditNote={(n) => setNoteOpen(n)}
+          onAddSheetNote={() =>
+            setNoteOpen({
+              id: crypto.randomUUID(),
+              sheetKey,
+              weekStart: null,
+              kind: "quote",
+              title: "",
+              body: "",
+              tone: "first",
+              emphasized: true,
+              sortOrder: 0,
+            })
+          }
           density="half"
         />
       ) : null}
@@ -624,10 +651,10 @@ export function LogWorkspace({
           <Button variant="ghost" size="icon" aria-label="上一张" onClick={() => onSheetChange(adjacentSheet(sheetKey, -1))}>
             <ChevronLeft />
           </Button>
-          <div>
+          <button type="button" className="text-left" onClick={() => setSheetPickOpen(true)}>
             <p className="font-display text-lg leading-tight font-medium">{sheetLabel(sheetKey)}</p>
-            <p className="text-[11px] text-muted-foreground">点格子放大写 · 正文自动保存</p>
-          </div>
+            <p className="text-[11px] text-muted-foreground">点标题选半年 · 点格子放大写</p>
+          </button>
           <Button variant="ghost" size="icon" aria-label="下一张" onClick={() => onSheetChange(adjacentSheet(sheetKey, 1))}>
             <ChevronRight />
           </Button>
@@ -654,6 +681,9 @@ export function LogWorkspace({
           <LayoutGrid className="size-3.5" />
           看全
         </Button>
+        <Button variant="outline" size="sm" onClick={goToday}>
+          回到今天
+        </Button>
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <Button variant="outline" size="sm" onClick={() => setSearchOpen(true)}>
@@ -668,10 +698,6 @@ export function LogWorkspace({
           <Button variant="outline" size="sm" onClick={() => setSpanOpen(true)}>
             <MapPin className="size-3.5" />
             时段
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => void loadExample()} disabled={Boolean(adapter?.importing)}>
-            <Sparkles className="size-3.5" />
-            载入示例半年
           </Button>
         </div>
       </div>
@@ -719,6 +745,23 @@ export function LogWorkspace({
           void handleSaveNote(n);
           setNoteOpen(null);
         }}
+        onDelete={
+          noteOpen?.id
+            ? () => {
+                void handleDeleteNote(noteOpen.id!);
+                setNoteOpen(null);
+              }
+            : undefined
+        }
+      />
+      <SheetPickerDialog
+        open={sheetPickOpen}
+        current={sheetKey}
+        onClose={() => setSheetPickOpen(false)}
+        onPick={(key) => {
+          onSheetChange(key);
+          setSheetPickOpen(false);
+        }}
       />
       <SpanDialog
         open={spanOpen}
@@ -737,13 +780,16 @@ function NoteDialog({
   open,
   onClose,
   onSave,
+  onDelete,
 }: {
   open: Partial<LogNote> | null;
   onClose: () => void;
   onSave: (n: LogNote) => void;
+  onDelete?: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const sheetLevel = Boolean(open) && !open?.weekStart;
   useEffect(() => {
     setTitle(open?.title ?? "");
     setBody(open?.body ?? "");
@@ -752,10 +798,14 @@ function NoteDialog({
   return (
     <Dialog open={Boolean(open)} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
-        <DialogTitle>本周备注</DialogTitle>
-        <DialogDescription>提醒、复盘、鸡汤、课表，都可以先写在右边。</DialogDescription>
+        <DialogTitle>{sheetLevel ? "给自己的话" : "本周备注"}</DialogTitle>
+        <DialogDescription>
+          {sheetLevel
+            ? "放在半年表最上面。点卡片可以改，不要了就删除。"
+            : "提醒、复盘、课表，写在这一周的右边。"}
+        </DialogDescription>
         <div className="mt-3 space-y-2">
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="标题" />
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="标题，可空" />
           <Textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="正文" />
           <Button
             className="w-full"
@@ -764,17 +814,79 @@ function NoteDialog({
                 id: open.id ?? crypto.randomUUID(),
                 sheetKey: open.sheetKey ?? currentSheetKey(),
                 weekStart: open.weekStart ?? null,
-                kind: open.kind ?? "plan",
+                kind: open.kind ?? (sheetLevel ? "quote" : "plan"),
                 title,
                 body,
-                tone: open.tone ?? "important",
+                tone: open.tone ?? (sheetLevel ? "first" : "important"),
                 emphasized: true,
-                sortOrder: 0,
+                sortOrder: open.sortOrder ?? 0,
               })
             }
           >
             写上
           </Button>
+          {onDelete ? (
+            <Button variant="ghost" className="w-full text-destructive" onClick={onDelete}>
+              删除
+            </Button>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SheetPickerDialog({
+  open,
+  current,
+  onClose,
+  onPick,
+}: {
+  open: boolean;
+  current: string;
+  onClose: () => void;
+  onPick: (key: string) => void;
+}) {
+  const todayKey = currentSheetKey();
+  const groups = new Map<number, { h1: string; h2: string }>();
+  for (const key of nearbySheets()) {
+    const { year, half } = parseSheetKey(key);
+    const g = groups.get(year) ?? { h1: `${year}-H1`, h2: `${year}-H2` };
+    if (half === 1) g.h1 = key;
+    else g.h2 = key;
+    groups.set(year, g);
+  }
+  const years = [...groups.keys()].sort((a, b) => b - a);
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogTitle>所有半年</DialogTitle>
+        <DialogDescription>一张总表。点上半年或下半年直接跳过去，不用连点箭头。</DialogDescription>
+        <div className="mt-3 space-y-2">
+          {years.map((year) => {
+            const g = groups.get(year)!;
+            return (
+              <div key={year} className="flex items-center gap-2">
+                <span className="w-12 font-display text-lg">{year}</span>
+                {([g.h1, g.h2] as const).map((key, i) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onPick(key)}
+                    className={cn(
+                      "flex-1 rounded-md border px-3 py-2 text-sm",
+                      key === current
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border hover:bg-muted",
+                    )}
+                  >
+                    {i === 0 ? "上半年 1–6 月" : "下半年 7–12 月"}
+                    {key === todayKey ? <span className="ml-1 text-[10px] opacity-80">今天</span> : null}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>

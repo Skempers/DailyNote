@@ -10,15 +10,22 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BackupRouteImport } from './routes/backup'
 import { Route as LogRouteImport } from './routes/log'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TryRouteImport } from './routes/try'
+import { Route as ApiPreviewBackupRouteImport } from './routes/api/preview-backup'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BackupRoute = BackupRouteImport.update({
+  id: '/backup',
+  path: '/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LogRoute = LogRouteImport.update({
@@ -41,6 +48,11 @@ const TryRoute = TryRouteImport.update({
   path: '/try',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPreviewBackupRoute = ApiPreviewBackupRouteImport.update({
+  id: '/api/preview-backup',
+  path: '/api/preview-backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -49,44 +61,76 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/backup': typeof BackupRoute
   '/log': typeof LogRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/try': typeof TryRoute
+  '/api/preview-backup': typeof ApiPreviewBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/backup': typeof BackupRoute
   '/log': typeof LogRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/try': typeof TryRoute
+  '/api/preview-backup': typeof ApiPreviewBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/backup': typeof BackupRoute
   '/log': typeof LogRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/try': typeof TryRoute
+  '/api/preview-backup': typeof ApiPreviewBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/log' | '/login' | '/settings' | '/try' | '/api/auth/$'
+  fullPaths:
+    | '/'
+    | '/backup'
+    | '/log'
+    | '/login'
+    | '/settings'
+    | '/try'
+    | '/api/preview-backup'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/log' | '/login' | '/settings' | '/try' | '/api/auth/$'
+  to:
+    | '/'
+    | '/backup'
+    | '/log'
+    | '/login'
+    | '/settings'
+    | '/try'
+    | '/api/preview-backup'
+    | '/api/auth/$'
   id:
-    '__root__' | '/' | '/log' | '/login' | '/settings' | '/try' | '/api/auth/$'
+    | '__root__'
+    | '/'
+    | '/backup'
+    | '/log'
+    | '/login'
+    | '/settings'
+    | '/try'
+    | '/api/preview-backup'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BackupRoute: typeof BackupRoute
   LogRoute: typeof LogRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
   TryRoute: typeof TryRoute
+  ApiPreviewBackupRoute: typeof ApiPreviewBackupRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -97,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/backup': {
+      id: '/backup'
+      path: '/backup'
+      fullPath: '/backup'
+      preLoaderRoute: typeof BackupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/log': {
@@ -127,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/preview-backup': {
+      id: '/api/preview-backup'
+      path: '/api/preview-backup'
+      fullPath: '/api/preview-backup'
+      preLoaderRoute: typeof ApiPreviewBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -139,10 +197,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BackupRoute: BackupRoute,
   LogRoute: LogRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
   TryRoute: TryRoute,
+  ApiPreviewBackupRoute: ApiPreviewBackupRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

@@ -61,14 +61,13 @@ export function LiveLogWorkspace({
             return { ...s, notes };
           });
         },
+        deleteNote: async (id) => {
+          await live.deleteNote(id);
+        },
         saveSpan: async (s) => {
           const saved = await live.saveSpan(s);
           live.patchSnap((prev) => ({ ...prev, spans: [...prev.spans.filter((x) => x.id !== saved.id), saved] }));
         },
-        importDemo: async () => {
-          await live.importDemo();
-        },
-        importing: live.importing,
         search: async (q) => {
           if (!q.trim()) return [];
           try {
