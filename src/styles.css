@@ -1,0 +1,172 @@
+@import url("https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --color-background: #f3eee4;
+  --color-foreground: #1a1714;
+  --color-card: #f8f4ec;
+  --color-card-foreground: #1a1714;
+  --color-primary: #1f5e58;
+  --color-primary-foreground: #f3eee4;
+  --color-secondary: #ede6d8;
+  --color-secondary-foreground: #1a1714;
+  --color-muted: #e7e0d4;
+  --color-muted-foreground: #6b645b;
+  --color-accent: #1f5e58;
+  --color-accent-foreground: #f3eee4;
+  --color-destructive: #9b3a3a;
+  --color-destructive-foreground: #f8f4ec;
+  --color-border: #ddd4c6;
+  --color-input: #ddd4c6;
+  --color-ring: #1f5e58;
+  --color-paper-2: #ebe4d6;
+  --color-ink-soft: #5c564e;
+
+  --color-month-1: #f3e187;
+  --color-month-1-fg: #5c4a0a;
+  --color-month-2: #f3c6d4;
+  --color-month-2-fg: #6a2c44;
+  --color-month-3: #d5c4f0;
+  --color-month-3-fg: #4a2d73;
+  --color-month-4: #f0c48a;
+  --color-month-4-fg: #6a3e0c;
+  --color-month-5: #c5dca8;
+  --color-month-5-fg: #2d4a16;
+  --color-month-6: #b8e0d4;
+  --color-month-6-fg: #1a4a40;
+  --color-month-7: #f0b5a0;
+  --color-month-7-fg: #6a2a18;
+  --color-month-8: #f5d0b0;
+  --color-month-8-fg: #6a3c18;
+  --color-month-9: #f0c9d8;
+  --color-month-9-fg: #6a3048;
+  --color-month-10: #a8cdea;
+  --color-month-10-fg: #1a3c5c;
+  --color-month-11: #d4c4b0;
+  --color-month-11-fg: #4a3a28;
+  --color-month-12: #c5d5e0;
+  --color-month-12-fg: #243848;
+
+  --color-tone-important: #f0d56a;
+  --color-tone-important-fg: #5c4a0a;
+  --color-tone-social: #86c48a;
+  --color-tone-social-fg: #1a4a22;
+  --color-tone-first: #7eb6e0;
+  --color-tone-first-fg: #0c3a5c;
+  --color-tone-favorite: #d96b6b;
+  --color-tone-favorite-fg: #4a1010;
+  --color-tone-emo: #c9c4bc;
+  --color-tone-emo-fg: #3f3a34;
+  --color-tone-memory: #3a3732;
+  --color-tone-memory-fg: #f3eee4;
+  --color-tone-cycle: #fafaf7;
+  --color-tone-cycle-fg: #6b6358;
+
+  --color-trip-pink: #e8b0c4;
+  --color-trip-blue: #7aa7d4;
+  --color-trip-orange: #e0a06a;
+  --color-trip-purple: #b39ad6;
+  --color-trip-teal: #6aaaa0;
+  --color-trip-ink: #3a3732;
+
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-xs: 0.25rem;
+
+  --shadow-border:
+    0px 0px 0px 1px rgba(26, 23, 20, 0.06), 0px 1px 2px -1px rgba(26, 23, 20, 0.06),
+    0px 2px 4px 0px rgba(26, 23, 20, 0.04);
+  --shadow-border-hover:
+    0px 0px 0px 1px rgba(26, 23, 20, 0.08), 0px 1px 2px -1px rgba(26, 23, 20, 0.08),
+    0px 2px 4px 0px rgba(26, 23, 20, 0.06);
+
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html,
+  body,
+  #app {
+    min-height: 100%;
+    background: var(--color-background);
+    color: var(--color-foreground);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    font-family: var(--font-display);
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-primary) 22%, white);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.paper-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-foreground) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-foreground) 6%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.stamp {
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+}
+
+[data-separator] {
+  cursor: col-resize;
+  flex: 0 0 6px;
+  background: var(--color-border);
+}
+
+[data-separator]:hover,
+[data-separator][data-active] {
+  background: color-mix(in oklab, var(--color-primary) 45%, var(--color-border));
+}
+
+[data-group] {
+  min-height: 0;
+  height: 100%;
+}
