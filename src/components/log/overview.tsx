@@ -17,9 +17,10 @@ import {
 } from "@/lib/slog/calendar";
 import { TONE_COLORS } from "@/lib/slog/colors";
 import { exportNodePng, exportViewExcel } from "@/lib/slog/export";
-import type { LogSnapshot, ViewMode } from "@/lib/slog/types";
+import type { LifeMap, LogSnapshot, ViewMode } from "@/lib/slog/types";
 import { cn } from "@/lib/utils";
 import { DayCell } from "./day-cell";
+import { LifeBoard, YearBoard } from "./canvas";
 
 function locationForWeek(days: string[], snap: LogSnapshot) {
   for (const iso of days) {
@@ -41,6 +42,7 @@ export function OverviewDialog({
   month,
   selected,
   onSelect,
+  lifeMap,
 }: {
   open: boolean;
   onClose: () => void;
@@ -50,6 +52,7 @@ export function OverviewDialog({
   month: number;
   selected: string | null;
   onSelect: (iso: string) => void;
+  lifeMap?: LifeMap | null;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState<"png" | "xls" | null>(null);
@@ -119,6 +122,12 @@ export function OverviewDialog({
           ) : null}
           {view === "half" ? (
             <HalfOverview snap={snap} selected={selected} onSelect={onSelect} />
+          ) : null}
+          {view === "year" ? (
+            <YearBoard snap={snap} year={year} selected={selected} onSelect={onSelect} />
+          ) : null}
+          {view === "life" ? (
+            <LifeBoard map={lifeMap ?? { days: {} }} selected={selected} onSelect={onSelect} />
           ) : null}
         </div>
       </div>

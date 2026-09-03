@@ -17,6 +17,7 @@ import type {
   LogSettings,
   LogSnapshot,
   LogSpan,
+  LifeMap,
   NoteKind,
   SearchHit,
 } from "./types";
@@ -250,6 +251,64 @@ export const loadSheet = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context, data: sheetKey }) => {
     return readSnapshot(context.userId, sheetKey);
+  });
+
+export const loadYear = createServerFn({ method: "GET" })
+  .validator((year: number) => year)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data: year }) => {
+    const y = Number(year) || new Date().getFullYear();
+    const from = `${y}-01-01`;
+    const to = `${y}-12-31`;
+    const h1 = `${y}-H1`;
+    const h2 = `${y}-H2`;
+    const sql = await getSql();
+    const [settingsRows, dayRows, entryRows, noteRows, spanRows, todoRows] = await Promise.all([
+      sql<SettingsRow>`select favorite_label, semester_start, seeded from slog_settings where user_id = ${context.userId}`,
+      sql<DayRow>`select id, day_date, primary_tone, secondary_tone, location, header_note, p3, journal from slog_days where user_id = ${context.userId} and day_date >= ${from} and day_date <= ${to}`,
+      sql<EntryRow>`select id, day_date, kind, body, marker, emphasis, starred, sort_order from slog_entries where user_id = ${context.userId} and day_date >= ${from} and day_date <= ${to} order by sort_order, created_at`,
+      sql<NoteRow>`select id, sheet_key, week_start, kind, title, body, tone, emphasized, sort_order from slog_notes where user_id = ${context.userId} and (sheet_key = ${h1} or sheet_key = ${h2}) order by sort_order, created_at`,
+      sql<SpanRow>`select id, start_date, end_date, kind, label, color, show_weeks from slog_spans where user_id = ${context.userId} and start_date <= ${to} and end_date >= ${from}`,
+      sql<TodoRow>`select id, day_date, body, done, sort_order from slog_todos where user_id = ${context.userId} and day_date >= ${from} and day_date <= ${to} order by sort_order, created_at`,
+    ]);
+    const days: Record<string, DayRecord> = {};
+    for (const r of dayRows) days[r.day_date] = mapDay(r);
+    const entries: Record<string, LogEntry[]> = {};
+    for (const r of entryRows) (entries[r.day_date] ??= []).push(mapEntry(r));
+    const todos: Record<string, import("./types").DayTodo[]> = {};
+    for (const r of todoRows) (todos[r.day_date] ??= []).push(mapTodo(r));
+    const settings: LogSettings = settingsRows[0]
+      ? { favoriteLabel: settingsRows[0].favorite_label, semesterStart: settingsRows[0].semester_start }
+      : { favoriteLabel: "照相", semesterStart: null };
+    return {
+      sheetKey: h1,
+      settings,
+      days,
+      entries,
+      images: {},
+      todos,
+      notes: noteRows.map(mapNote),
+      spans: spanRows.map(mapSpan),
+    } satisfies LogSnapshot;
+  });
+
+export const loadLifeMap = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    const rows = await sql<{ day_date: string; primary_tone: string; filled: boolean }>`
+      select day_date, primary_tone, (length(coalesce(journal, '')) > 0) as filled
+      from slog_days where user_id = ${context.userId}
+    `;
+    const days: LifeMap["days"] = {};
+    for (const r of rows) {
+      days[r.day_date] = {
+        date: r.day_date,
+        tone: (r.primary_tone as DayTone) || "month",
+        filled: Boolean(r.filled),
+      };
+    }
+    return { days } satisfies LifeMap;
   });
 
 export const ensureSeeded = createServerFn({ method: "POST" })

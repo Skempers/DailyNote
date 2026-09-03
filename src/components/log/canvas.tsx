@@ -1,4 +1,5 @@
 import { SPAN_SWATCH, TONE_COLORS } from "@/lib/slog/colors";
+import type { MouseEvent } from "react";
 import {
   inSheet,
   monthOf,
@@ -8,8 +9,10 @@ import {
   WEEKDAYS,
   weekOf,
   weeksOfSheet,
+  weeksOfYear,
+  yearOf,
 } from "@/lib/slog/calendar";
-import type { LogNote, LogSnapshot, ViewMode } from "@/lib/slog/types";
+import type { LifeMap, LogNote, LogSnapshot, ViewMode } from "@/lib/slog/types";
 import { cn } from "@/lib/utils";
 import { DayCell } from "./day-cell";
 
@@ -256,12 +259,14 @@ export function MonthBoard({
   month,
   selected,
   onSelect,
+  density = "month",
 }: {
   snap: LogSnapshot;
   year: number;
   month: number;
   selected: string | null;
   onSelect: (iso: string) => void;
+  density?: ViewMode;
 }) {
   const first = new Date(year, month - 1, 1);
   const startPad = (first.getDay() + 6) % 7;
@@ -287,20 +292,29 @@ export function MonthBoard({
       </div>
       <div className="grid grid-cols-7">
         {cells.map((iso, idx) => {
-          if (!iso) return <div key={`p-${idx}`} className="min-h-44 border-r border-b border-border/50 bg-muted/30" />;
+          if (!iso)
+            return (
+              <div
+                key={`p-${idx}`}
+                className={cn(
+                  "border-r border-b border-border/50 bg-muted/30",
+                  density === "year" ? "min-h-12" : "min-h-44",
+                )}
+              />
+            );
           return (
             <DayCell
               key={iso}
               iso={iso}
               sheetKey={snap.sheetKey}
               day={snap.days[iso]}
-              entries={snap.entries[iso] ?? []}
-              images={snap.images?.[iso] ?? []}
-              todos={snap.todos?.[iso] ?? []}
+              entries={density === "year" ? [] : snap.entries[iso] ?? []}
+              images={density === "year" ? [] : snap.images?.[iso] ?? []}
+              todos={density === "year" ? [] : snap.todos?.[iso] ?? []}
               spans={snap.spans}
               selected={selected === iso}
               onSelect={onSelect}
-              density="month"
+              density={density}
             />
           );
         })}
@@ -469,3 +483,119 @@ export function MonthHeatmap({
     </div>
   );
 }
+
+export function YearBoard({
+  snap,
+  year,
+  selected,
+  onSelect,
+}: {
+  snap: LogSnapshot;
+  year: number;
+  selected: string | null;
+  onSelect: (iso: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+        <div key={month} className="min-w-0" style={{ contentVisibility: "auto", containIntrinsicSize: "12rem" }}>
+          <p className="mb-1.5 font-display text-sm font-medium">{month} 月</p>
+          <MonthBoard snap={snap} year={year} month={month} selected={selected} onSelect={onSelect} density="year" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function LifeBoard({
+  map,
+  selected,
+  onSelect,
+}: {
+  map: LifeMap;
+  selected: string | null;
+  onSelect: (iso: string) => void;
+}) {
+  const nowY = new Date().getFullYear();
+  const dated = Object.keys(map.days);
+  const minY = dated.length ? Math.min(...dated.map((d) => yearOf(d))) : nowY - 3;
+  const from = Math.min(minY, nowY - 3);
+  const years: number[] = [];
+  for (let y = from; y <= nowY; y++) years.push(y);
+
+  function onYearClick(e: MouseEvent<HTMLDivElement>) {
+    const iso = (e.target as HTMLElement | null)?.closest("[data-date]")?.getAttribute("data-date");
+    if (iso) onSelect(iso);
+  }
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">每天一格颜色。点格子打开那天。格子很小，所以这一生才滚得动。</p>
+      {years.map((year) => {
+        const weeks = weeksOfYear(year);
+        return (
+          <section
+            key={year}
+            className="min-w-0"
+            style={{ contentVisibility: "auto", containIntrinsicSize: "6rem" }}
+          >
+            <p className="mb-1.5 font-display text-base font-medium">{year}</p>
+            <div className="overflow-x-auto">
+              <div className="flex gap-2">
+                <div className="flex w-4 flex-col justify-between py-0.5 text-[9px] text-muted-foreground">
+                  <span>一</span>
+                  <span>三</span>
+                  <span>五</span>
+                  <span>日</span>
+                </div>
+                <div
+                  className="grid"
+                  style={{
+                    gridTemplateRows: "repeat(7, 11px)",
+                    gridAutoFlow: "column",
+                    gridAutoColumns: "11px",
+                    gap: 2,
+                  }}
+                  onClick={onYearClick}
+                >
+                  {weeks.flatMap((week, wi) =>
+                    week.days.map((d, di) => {
+                      const iso = toISODate(d);
+                      const inYear = yearOf(iso) === year;
+                      const dot = map.days[iso];
+                      const month = monthOf(iso);
+                      const bg = !inYear
+                        ? "transparent"
+                        : dot
+                          ? dot.tone === "month"
+                            ? `var(--color-month-${month})`
+                            : TONE_COLORS[dot.tone].bg
+                          : "var(--color-muted)";
+                      return (
+                        <button
+                          key={`${wi}-${di}`}
+                          type="button"
+                          data-date={inYear ? iso : undefined}
+                          title={inYear ? iso : undefined}
+                          disabled={!inYear}
+                          className={cn(
+                            "size-[11px] rounded-[2px]",
+                            inYear && "hover:ring-1 hover:ring-foreground/40",
+                            selected === iso && "ring-1 ring-primary",
+                            !dot && inYear && "opacity-55",
+                          )}
+                          style={{ background: bg }}
+                        />
+                      );
+                    }),
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+

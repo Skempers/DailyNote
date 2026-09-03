@@ -56,6 +56,30 @@ export function adjacentSheet(key: string, dir: -1 | 1): SheetKey {
   return half === 2 ? (`${year}-H1` as SheetKey) : (`${year - 1}-H2` as SheetKey);
 }
 
+export function sheetKeyFromIso(iso: string): SheetKey {
+  const y = yearOf(iso);
+  const m = monthOf(iso);
+  return `${y}-H${m < 7 ? 1 : 2}` as SheetKey;
+}
+
+export function weeksOfYear(year: number): GridWeek[] {
+  const start = startOfWeek(new Date(year, 0, 1), { weekStartsOn: 1 });
+  const last = startOfWeek(new Date(year, 11, 31), { weekStartsOn: 1 });
+  const weeks: GridWeek[] = [];
+  for (let cursor = start; !isAfter(cursor, last); cursor = addDays(cursor, 7)) {
+    weeks.push({
+      monday: cursor,
+      mondayIso: toISODate(cursor),
+      days: eachDayOfInterval({ start: cursor, end: addDays(cursor, 6) }),
+    });
+  }
+  return weeks;
+}
+
+export function yearInterval(year: number): { start: Date; end: Date } {
+  return { start: new Date(year, 0, 1), end: new Date(year, 11, 31) };
+}
+
 export function toISODate(d: Date): string {
   return format(d, "yyyy-MM-dd");
 }
@@ -207,6 +231,10 @@ export function datesInView(
 ): string[] {
   if (view === "week") return weekOf(opts.weekMonday).days.map(toISODate);
   if (view === "month") return daysOfMonth(opts.year, opts.month).map(toISODate);
+  if (view === "year" || view === "life") {
+    const { start, end } = yearInterval(opts.year);
+    return eachDayOfInterval({ start, end }).map(toISODate);
+  }
   const { start, end } = sheetRange(opts.sheetKey);
   return eachDayOfInterval({ start, end }).map(toISODate);
 }
@@ -217,6 +245,8 @@ export function viewRangeLabel(
 ): string {
   if (view === "week") return formatWeekRange(opts.weekMonday);
   if (view === "month") return `${opts.year}年${opts.month}月`;
+  if (view === "year") return `${opts.year} 年`;
+  if (view === "life") return "一生";
   return sheetLabel(opts.sheetKey);
 }
 

@@ -36,6 +36,7 @@ import {
   monthStartsInSheet,
   nearbySheets,
   parseSheetKey,
+  sheetKeyFromIso,
   sheetLabel,
   shiftWeek,
   toISODate,
@@ -43,13 +44,13 @@ import {
 } from "@/lib/slog/calendar";
 import { compressImageFile, IMAGE_LIMITS } from "@/lib/slog/compress-image";
 import { clearDraft, writeDraft } from "@/lib/slog/drafts";
-import { LAYER_MODES, SPAN_PALETTE, VIEW_MODES } from "@/lib/slog/types";
-import type { LayerMode, LogImage, LogNote, LogSnapshot, LogSpan, SearchHit, ViewMode } from "@/lib/slog/types";
+import { LAYER_MODES, MORE_MODES, SPAN_PALETTE, VIEW_MODES } from "@/lib/slog/types";
+import type { LayerMode, LifeMap, LogImage, LogNote, LogSnapshot, LogSpan, SearchHit, ViewMode } from "@/lib/slog/types";
 import { localSearch, useDemoLog } from "@/lib/slog/use-demo-log";
 import type { DayDraft, SaveState } from "./editor";
 import { DayEditor } from "./editor";
 import { LegendDialog } from "./legend-dialog";
-import { MonthBoard, SemesterCanvas, WeekBoard } from "./canvas";
+import { LifeBoard, MonthBoard, SemesterCanvas, WeekBoard, YearBoard } from "./canvas";
 import { OverviewDialog } from "./overview";
 import { SearchPalette } from "./search-palette";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,8 @@ export type LogAdapter = {
   saveSpan?: (s: LogSpan) => Promise<void> | void;
   search?: (q: string) => Promise<SearchHit[]> | SearchHit[];
   loadDayImages?: (date: string) => Promise<LogImage[]>;
+  loadYear?: (year: number) => Promise<LogSnapshot>;
+  loadLife?: () => Promise<LifeMap>;
   patchSnap?: (mut: (s: LogSnapshot) => LogSnapshot) => void;
   draftNs?: string;
   guest?: boolean;
@@ -75,7 +78,7 @@ export type LogAdapter = {
 function readView(): ViewMode {
   if (typeof window === "undefined") return "half";
   const v = window.localStorage.getItem("slog-view-mode");
-  return v === "week" || v === "month" || v === "half" ? v : "half";
+  return v === "week" || v === "month" || v === "half" || v === "year" || v === "life" ? v : "half";
 }
 
 function readLayer(): LayerMode {
@@ -112,6 +115,10 @@ export function LogWorkspace({
   );
   const [weekMonday, setWeekMonday] = useState(() => clampWeekToSheet(sheetKey, toISODate(new Date())));
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [yearSnap, setYearSnap] = useState<LogSnapshot | null>(null);
+  const [lifeMap, setLifeMap] = useState<LifeMap | null>(null);
+  const [widePending, setWidePending] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const pendingScroll = useRef<string | null>(toISODate(new Date()));
   const [xl, setXl] = useState(false);
@@ -128,6 +135,55 @@ export function LogWorkspace({
     pendingScroll.current = anchorDate(sheetKey, selected, Object.keys(snap?.days ?? {}));
     setViewReady(true);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (view !== "year") return;
+    const y = parseSheetKey(sheetKey).year;
+    setWidePending(true);
+    void (async () => {
+      try {
+        if (adapter?.loadYear) {
+          const s = await adapter.loadYear(y);
+          if (!cancelled) setYearSnap(s);
+        } else if (snap) {
+          if (!cancelled) setYearSnap(snap);
+        }
+      } finally {
+        if (!cancelled) setWidePending(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, sheetKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (view !== "life") return;
+    setWidePending(true);
+    void (async () => {
+      try {
+        if (adapter?.loadLife) {
+          const m = await adapter.loadLife();
+          if (!cancelled) setLifeMap(m);
+        } else if (snap) {
+          const days: LifeMap["days"] = {};
+          for (const [iso, d] of Object.entries(snap.days)) {
+            days[iso] = { date: iso, tone: d.primaryTone, filled: Boolean((d.journal ?? "").trim()) };
+          }
+          if (!cancelled) setLifeMap({ days });
+        }
+      } finally {
+        if (!cancelled) setWidePending(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   useEffect(() => {
     const xlMq = window.matchMedia("(min-width: 1280px)");
@@ -223,6 +279,17 @@ export function LogWorkspace({
       };
       if (adapter?.patchSnap) adapter.patchSnap(mut);
       else demo.setSnap(mut);
+      setYearSnap((s) => (s ? mut(s) : s));
+      setLifeMap((m) => {
+        if (!m) return m;
+        const d = draft.day;
+        return {
+          days: {
+            ...m.days,
+            [d.date]: { date: d.date, tone: d.primaryTone, filled: Boolean((d.journal ?? "").trim()) },
+          },
+        };
+      });
     },
     [adapter, demo],
   );
@@ -303,8 +370,10 @@ export function LogWorkspace({
 
   function pickDay(iso: string) {
     void flush();
+    const key = sheetKeyFromIso(iso);
+    if (key !== sheetKey) onSheetChange(key);
     setSelected(iso);
-    setMobileMonth(clampMonthToSheet(sheetKey, Number(iso.slice(5, 7))));
+    setMobileMonth(clampMonthToSheet(key, Number(iso.slice(5, 7))));
     setWeekMonday(weekOf(iso).mondayIso);
     pendingScroll.current = iso;
     window.requestAnimationFrame(() => {
@@ -610,6 +679,22 @@ export function LogWorkspace({
           }
         />
       ) : null}
+
+      {view === "year" ? (
+        widePending && !yearSnap ? (
+          <Skeleton className="h-96 w-full" />
+        ) : (
+          <YearBoard snap={yearSnap ?? snap} year={year} selected={selected} onSelect={pickDay} />
+        )
+      ) : null}
+
+      {view === "life" ? (
+        widePending && !lifeMap ? (
+          <Skeleton className="h-96 w-full" />
+        ) : (
+          <LifeBoard map={lifeMap ?? { days: {} }} selected={selected} onSelect={pickDay} />
+        )
+      ) : null}
     </div>
   );
 
@@ -659,14 +744,46 @@ export function LogWorkspace({
       ) : null}
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card/80 px-3 py-2 backdrop-blur-sm md:px-5">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" aria-label="上一张" onClick={() => onSheetChange(adjacentSheet(sheetKey, -1))}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="上一张"
+            disabled={view === "life"}
+            onClick={() => {
+              if (view === "life") return;
+              if (view === "year") {
+                const { year: y, half: h } = parseSheetKey(sheetKey);
+                onSheetChange(`${y - 1}-H${h}`);
+                return;
+              }
+              onSheetChange(adjacentSheet(sheetKey, -1));
+            }}
+          >
             <ChevronLeft />
           </Button>
-          <button type="button" className="text-left" onClick={() => setSheetPickOpen(true)}>
-            <p className="font-display text-lg leading-tight font-medium">{sheetLabel(sheetKey)}</p>
-            <p className="text-[11px] text-muted-foreground">点标题选半年 · 点格子放大写</p>
+          <button type="button" className="text-left" onClick={() => (view === "life" ? undefined : setSheetPickOpen(true))}>
+            <p className="font-display text-lg leading-tight font-medium">
+              {view === "life" ? "一生" : view === "year" ? `${year} 年` : sheetLabel(sheetKey)}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {view === "life" ? "每天一格颜色 · 点格子写" : view === "year" ? "十二个月铺开 · 点格子写" : "点标题选半年 · 点格子放大写"}
+            </p>
           </button>
-          <Button variant="ghost" size="icon" aria-label="下一张" onClick={() => onSheetChange(adjacentSheet(sheetKey, 1))}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="下一张"
+            disabled={view === "life"}
+            onClick={() => {
+              if (view === "life") return;
+              if (view === "year") {
+                const { year: y, half: h } = parseSheetKey(sheetKey);
+                onSheetChange(`${y + 1}-H${h}`);
+                return;
+              }
+              onSheetChange(adjacentSheet(sheetKey, 1));
+            }}
+          >
             <ChevronRight />
           </Button>
         </div>
@@ -686,6 +803,44 @@ export function LogWorkspace({
               {m.label}
             </button>
           ))}
+        </div>
+
+        <div className="relative">
+          <button
+            type="button"
+            title="一年、一生"
+            onClick={() => setMoreOpen((v) => !v)}
+            className={cn(
+              "rounded-md border border-border px-2.5 py-1.5 text-xs",
+              view === "year" || view === "life"
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            更多
+          </button>
+          {moreOpen ? (
+            <div className="absolute top-full left-0 z-30 mt-1 min-w-40 rounded-md border border-border bg-card p-1 shadow-border">
+              {MORE_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  title={m.hint}
+                  onClick={() => {
+                    changeView(m.id);
+                    setMoreOpen(false);
+                  }}
+                  className={cn(
+                    "block w-full rounded-sm px-2.5 py-1.5 text-left text-xs",
+                    view === m.id ? "bg-foreground text-background" : "hover:bg-muted",
+                  )}
+                >
+                  {m.label}
+                  <span className="mt-0.5 block text-[10px] font-normal opacity-70">{m.hint}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex rounded-md border border-border p-0.5">
@@ -753,11 +908,12 @@ export function LogWorkspace({
       <OverviewDialog
         open={overviewOpen}
         onClose={() => setOverviewOpen(false)}
-        snap={snap}
+        snap={view === "year" ? yearSnap ?? snap : snap}
         view={view}
         weekMonday={weekMonday}
         month={mobileMonth}
         selected={selected}
+        lifeMap={lifeMap}
         onSelect={(iso) => {
           setOverviewOpen(false);
           pickDay(iso);

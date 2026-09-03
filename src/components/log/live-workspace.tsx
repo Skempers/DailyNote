@@ -1,3 +1,4 @@
+import { loadLifeMap, loadYear } from "@/lib/slog/api";
 import type { DayDraft } from "./editor";
 import { LogWorkspace } from "./workspace";
 import { remoteSearch, useLiveLog } from "@/lib/slog/use-live-log";
@@ -53,6 +54,8 @@ export function LiveLogWorkspace({
           await live.deleteImage(id);
         },
         loadDayImages: live.loadDayImages,
+        loadYear: (year) => loadYear({ data: year }),
+        loadLife: () => loadLifeMap(),
         saveNote: async (n) => {
           const saved = await live.saveNote(n);
           live.patchSnap((s) => {

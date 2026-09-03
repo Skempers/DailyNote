@@ -33,7 +33,7 @@ export const DayCell = memo(function DayCell({
 }) {
   const layer = useLayerMode();
   const month = monthOf(iso);
-  const inRange = inSheet(iso, sheetKey);
+  const inRange = density === "year" || inSheet(iso, sheetKey);
   const tone = day?.primaryTone ?? "month";
   const header = headerFill(tone, month);
   const secondary = day?.secondaryTone && day.secondaryTone !== "month" ? day.secondaryTone : null;
@@ -44,31 +44,38 @@ export const DayCell = memo(function DayCell({
   const wash = tone === "month" ? undefined : TONE_COLORS[tone].wash;
   const journal = (day?.journal ?? "").trim();
   const p3 = (day?.p3 ?? []).filter(Boolean).slice(0, 3);
-  const compact = density === "overview";
-  const thumbMax = density === "week" ? 9 : density === "month" ? 6 : compact ? 3 : 6;
+  const compact = density === "overview" || density === "year";
+  const tiny = density === "year";
+  const thumbMax = density === "week" ? 9 : density === "month" ? 6 : compact ? 0 : 6;
 
-  const minH = compact
-    ? "min-h-16"
-    : density === "week"
-      ? "h-full min-h-[20rem]"
-      : density === "month"
-        ? "min-h-44"
-        : "min-h-28";
-  const journalClamp = compact
+  const minH = tiny
+    ? "min-h-[4.5rem]"
+    : compact
+      ? "min-h-16"
+      : density === "week"
+        ? "h-full min-h-[20rem]"
+        : density === "month"
+          ? "min-h-44"
+          : "min-h-28";
+  const journalClamp = tiny
     ? "line-clamp-2"
-    : density === "week"
-      ? "line-clamp-[18]"
-      : density === "month"
-        ? "line-clamp-8"
-        : "line-clamp-5";
-  const entryClamp = compact ? 1 : density === "week" ? 8 : density === "month" ? 5 : 3;
-  const journalSize = compact
-    ? "text-[10px] leading-snug"
-    : density === "week"
-      ? "text-[13px] leading-relaxed"
-      : density === "month"
-        ? "text-[12px] leading-snug"
-        : "text-[11px] leading-snug";
+    : compact
+      ? "line-clamp-2"
+      : density === "week"
+        ? "line-clamp-[18]"
+        : density === "month"
+          ? "line-clamp-8"
+          : "line-clamp-5";
+  const entryClamp = tiny ? 0 : compact ? 1 : density === "week" ? 8 : density === "month" ? 5 : 3;
+  const journalSize = tiny
+    ? "text-[10px] leading-tight"
+    : compact
+      ? "text-[10px] leading-snug"
+      : density === "week"
+        ? "text-[13px] leading-relaxed"
+        : density === "month"
+          ? "text-[12px] leading-snug"
+          : "text-[11px] leading-snug";
 
   return (
     <div
@@ -177,7 +184,7 @@ export const DayCell = memo(function DayCell({
             ) : null}
           </ul>
         ) : null}
-        {layer !== "todo" && images?.length ? (
+        {layer !== "todo" && !tiny && images?.length ? (
           <div className="min-w-0">
             <PhotoGrid images={images} size="sm" maxShow={thumbMax} />
           </div>

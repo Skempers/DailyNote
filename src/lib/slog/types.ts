@@ -50,7 +50,7 @@ export type Emphasis = "normal" | "bold" | "large";
 
 export type SheetKey = `${number}-H1` | `${number}-H2`;
 
-export type ViewMode = "week" | "month" | "half";
+export type ViewMode = "week" | "month" | "half" | "year" | "life";
 
 export type LayerMode = "log" | "todo" | "both";
 
@@ -131,6 +131,16 @@ export type LogSnapshot = {
   spans: LogSpan[];
 };
 
+export type LifeDot = {
+  date: string;
+  tone: DayTone;
+  filled: boolean;
+};
+
+export type LifeMap = {
+  days: Record<string, LifeDot>;
+};
+
 export type SearchHit = {
   id: string;
   date: string;
@@ -177,6 +187,11 @@ export const VIEW_MODES: { id: ViewMode; label: string; hint: string }[] = [
   { id: "week", label: "一周", hint: "七个大格子，一段话也能铺满" },
   { id: "month", label: "一月", hint: "看一个月的颜色和字" },
   { id: "half", label: "半年", hint: "原来那张总表" },
+];
+
+export const MORE_MODES: { id: ViewMode; label: string; hint: string }[] = [
+  { id: "year", label: "一年", hint: "十二个月铺开，格子变小" },
+  { id: "life", label: "一生", hint: "每天一格颜色，尽量不卡" },
 ];
 
 export const LAYER_MODES: { id: LayerMode; label: string; hint: string }[] = [
