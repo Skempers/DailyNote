@@ -295,7 +295,12 @@ export function DayEditor({
           : "自动保存";
 
   const journalBox = (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-0.5">
+    <section
+      className={cn(
+        "flex min-w-0 flex-col px-0.5",
+        layout === "dock" ? "min-h-[24rem] shrink-0" : "min-h-0 flex-1 overflow-hidden",
+      )}
+    >
       <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2">
         <Label htmlFor="journal">这一天</Label>
         <button
@@ -314,7 +319,10 @@ export function DayEditor({
         onChange={(e) => patchDay({ journal: e.target.value })}
         onBlur={() => persist({ day, entries, images }, true)}
         placeholder="直接写。一段话会铺满格子，不用点保存。"
-        className="min-h-0 min-w-0 flex-1 resize-none overflow-y-auto whitespace-pre-wrap break-all text-base leading-relaxed"
+        className={cn(
+          "min-w-0 resize-none overflow-y-auto whitespace-pre-wrap break-all text-base leading-relaxed",
+          layout === "dock" ? "min-h-[22rem]" : "min-h-0 flex-1",
+        )}
       />
     </section>
   );
@@ -322,8 +330,8 @@ export function DayEditor({
   const imageBox = (
     <section
       className={cn(
-        "mt-2 flex min-w-0 flex-col overflow-hidden",
-        images.length ? "min-h-0 max-h-[30%] shrink-0" : "shrink-0",
+        "mt-2 flex min-w-0 flex-col",
+        layout === "dock" ? "shrink-0" : images.length ? "min-h-0 max-h-[30%] shrink-0 overflow-hidden" : "shrink-0",
       )}
     >
       <div className="mb-1 flex shrink-0 items-center justify-between">
@@ -332,7 +340,7 @@ export function DayEditor({
           {images.length}/{IMAGE_LIMITS.maxPerDay}
         </span>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
+      <div className={cn(layout === "dock" ? "" : "min-h-0 flex-1 overflow-y-auto pr-0.5")}>
         <PhotoGrid
           images={images}
           size="editor"
@@ -383,7 +391,12 @@ export function DayEditor({
   }
 
   const todoBox = (
-    <section className="mt-2 flex min-h-0 min-w-0 flex-col overflow-hidden">
+    <section
+      className={cn(
+        "mt-2 flex min-w-0 flex-col",
+        layout === "dock" ? "shrink-0" : "min-h-0 min-w-0 flex-1 overflow-hidden",
+      )}
+    >
       <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2">
         <Label>待办</Label>
         <div className="flex items-center gap-1">
@@ -406,7 +419,12 @@ export function DayEditor({
           </button>
         </div>
       </div>
-      <div className="min-h-16 min-w-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-0.5">
+      <div
+        className={cn(
+          "space-y-1",
+          layout === "dock" ? "" : "min-h-16 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-0.5",
+        )}
+      >
         {todos.map((t, i) => (
           <div key={t.id} className="flex items-center gap-1.5">
             <button
@@ -802,21 +820,21 @@ export function DayEditor({
     <div className="flex h-full min-h-0 flex-col">
       {journalWideLayer}
       <div className="shrink-0">{chrome}</div>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden py-3">
-        <div className="flex min-h-0 min-w-0 flex-[6] flex-col overflow-hidden">{journalBox}</div>
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto py-3">
+        {journalBox}
         {imageBox}
-        <div className="flex min-h-0 min-w-0 flex-[4] flex-col overflow-hidden">{todoBox}</div>
-      </div>
-      <div className="mt-2 min-h-0 max-h-[34%] shrink-0 overflow-y-auto border-t border-border pt-2">
-        <button
-          type="button"
-          onClick={() => setMetaOpen((v) => !v)}
-          className="text-left text-xs font-medium text-muted-foreground hover:text-foreground"
-        >
-          {metaOpen ? "收起颜色与 P3" : "颜色 · 标题 · P3"}
-        </button>
-        {metaOpen ? <div className="mt-2">{metaBox}</div> : null}
-        <div className="mt-3">{entriesBox}</div>
+        {todoBox}
+        <div className="mt-3 border-t border-border pt-2">
+          <button
+            type="button"
+            onClick={() => setMetaOpen((v) => !v)}
+            className="text-left text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            {metaOpen ? "收起颜色与 P3" : "颜色 · 标题 · P3"}
+          </button>
+          {metaOpen ? <div className="mt-2">{metaBox}</div> : null}
+          <div className="mt-3">{entriesBox}</div>
+        </div>
       </div>
       <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border pt-3">
         <span
