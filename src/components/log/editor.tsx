@@ -101,6 +101,8 @@ export function DayEditor({
   const [metaOpen, setMetaOpen] = useState(layout === "focus");
   const [imgError, setImgError] = useState<string | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
+  const [calmSaved, setCalmSaved] = useState(true);
+  const [editGen, setEditGen] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const journalRef = useRef<HTMLTextAreaElement>(null);
 
@@ -127,6 +129,18 @@ export function DayEditor({
   }, [layout, iso]);
 
   useEffect(() => {
+    if (saveState === "error") setCalmSaved(false);
+  }, [saveState]);
+
+  useEffect(() => {
+    if (editGen === 0) return;
+    setCalmSaved(false);
+    const wait = layout === "note" ? 16000 : 12000;
+    const t = window.setTimeout(() => setCalmSaved(true), wait);
+    return () => window.clearTimeout(t);
+  }, [editGen, layout]);
+
+  useEffect(() => {
     if (layout !== "note") return;
     const el = journalRef.current;
     if (!el) return;
@@ -138,10 +152,16 @@ export function DayEditor({
   const header = headerFill(day.primaryTone, monthOf(iso));
 
   function persist(next: Omit<DayDraft, "todos"> & { todos?: DayTodo[] }, immediate = false) {
+    setEditGen((n) => n + 1);
     onSave(
       { day: next.day, entries: next.entries, images: next.images, todos: next.todos ?? todos },
       { immediate },
     );
+  }
+
+  function finish() {
+    persist({ day, entries, images, todos }, true);
+    onClose();
   }
 
   function commit() {
@@ -236,34 +256,20 @@ export function DayEditor({
   }
 
   const saveLabel =
-    saveState === "saving"
-      ? "正在保存"
-      : saveState === "saved"
+    saveState === "error"
+      ? "保存失败，已留在本地"
+      : calmSaved
         ? ephemeral
           ? "已记在本页"
           : "已写入"
-        : saveState === "error"
-          ? "保存失败，已留在本地"
-          : saveState === "local"
-            ? ephemeral
-              ? "先记在本页"
-              : "先记在本地"
-            : ephemeral
-              ? "只留在本页"
-              : "边写边存";
+        : ephemeral
+          ? "先记在本页"
+          : "自动保存";
 
   const journalBox = (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div className="mb-1.5 flex shrink-0 items-baseline justify-between gap-2">
         <Label htmlFor="journal">这一天</Label>
-        <span
-          className={cn(
-            "text-[11px]",
-            saveState === "error" ? "text-destructive" : "text-muted-foreground",
-          )}
-        >
-          {saveLabel}
-        </span>
       </div>
       <Textarea
         id="journal"
@@ -601,15 +607,6 @@ export function DayEditor({
           <h2 className="font-display text-xl font-medium">{formatLong(iso)}</h2>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            size="sm"
-            variant={saveState === "saved" ? "secondary" : "default"}
-            onClick={commit}
-          >
-            <Check className="size-3.5" />
-            {saveState === "saving" ? "保存中" : saveState === "saved" ? "已保存" : "保存"}
-          </Button>
           {layout === "dock" && onExpand ? (
             <Button type="button" size="sm" variant="secondary" onClick={onExpand}>
               <Maximize2 className="size-3.5" />
@@ -657,9 +654,9 @@ export function DayEditor({
           <Button
             type="button"
             size="icon"
-            variant={saveState === "saved" ? "secondary" : "default"}
-            onClick={commit}
-            aria-label="保存"
+            variant="secondary"
+            onClick={finish}
+            aria-label="保存并返回"
             className="mr-1"
           >
             <Check className="size-5" />
@@ -734,13 +731,20 @@ export function DayEditor({
           </div>
         </div>
         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border pt-3">
-          <span className="text-[11px] text-muted-foreground">{saveLabel}</span>
+          <span
+            className={cn(
+              "text-[11px]",
+              saveState === "error" ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
+            {saveLabel}
+          </span>
           <div className="flex gap-2">
-            <Button type="button" size="sm" onClick={commit}>
+            <Button type="button" size="sm" onClick={finish}>
               <Check className="size-3.5" />
-              {saveState === "saved" ? "已保存" : "保存"}
+              已保存
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>
               收起
             </Button>
           </div>
@@ -768,10 +772,24 @@ export function DayEditor({
         {metaOpen ? <div className="mt-2">{metaBox}</div> : null}
         <div className="mt-3">{entriesBox}</div>
       </div>
-      <div className="flex shrink-0 justify-end border-t border-border pt-3">
-        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-          收起
-        </Button>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border pt-3">
+        <span
+          className={cn(
+            "text-[11px]",
+            saveState === "error" ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {saveLabel}
+        </span>
+        <div className="flex gap-2">
+          <Button type="button" size="sm" onClick={finish}>
+            <Check className="size-3.5" />
+            已保存
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={onClose}>
+            收起
+          </Button>
+        </div>
       </div>
     </div>
   );
