@@ -298,7 +298,11 @@ export function DayEditor({
     <section
       className={cn(
         "flex min-w-0 flex-col px-0.5",
-        layout === "dock" ? "min-h-[24rem] shrink-0" : "min-h-0 flex-1 overflow-hidden",
+        layout === "focus"
+          ? "h-[calc(100%-13rem)] min-h-[18rem] shrink-0"
+          : layout === "dock"
+            ? "min-h-[24rem] shrink-0"
+            : "min-h-0 flex-1",
       )}
     >
       <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2">
@@ -321,36 +325,29 @@ export function DayEditor({
         placeholder="直接写。一段话会铺满格子，不用点保存。"
         className={cn(
           "min-w-0 resize-none overflow-y-auto whitespace-pre-wrap break-all text-base leading-relaxed",
-          layout === "dock" ? "min-h-[22rem]" : "min-h-0 flex-1",
+          layout === "dock" ? "min-h-[22rem]" : layout === "focus" ? "min-h-0 flex-1" : "min-h-0 flex-1",
         )}
       />
     </section>
   );
 
   const imageBox = (
-    <section
-      className={cn(
-        "mt-2 flex min-w-0 flex-col",
-        layout === "dock" ? "shrink-0" : images.length ? "min-h-0 max-h-[30%] shrink-0 overflow-hidden" : "shrink-0",
-      )}
-    >
+    <section className="mt-2 flex min-w-0 shrink-0 flex-col">
       <div className="mb-1 flex shrink-0 items-center justify-between">
         <Label>照片</Label>
         <span className="text-[11px] text-muted-foreground">
           {images.length}/{IMAGE_LIMITS.maxPerDay}
         </span>
       </div>
-      <div className={cn(layout === "dock" ? "" : "min-h-0 flex-1 overflow-y-auto pr-0.5")}>
-        <PhotoGrid
-          images={images}
-          size="editor"
-          maxShow={IMAGE_LIMITS.maxPerDay}
-          onDelete={dropImage}
-          onAdd={() => fileRef.current?.click()}
-          busy={imgBusy}
-          canAdd={images.length < IMAGE_LIMITS.maxPerDay}
-        />
-      </div>
+      <PhotoGrid
+        images={images}
+        size="editor"
+        maxShow={IMAGE_LIMITS.maxPerDay}
+        onDelete={dropImage}
+        onAdd={() => fileRef.current?.click()}
+        busy={imgBusy}
+        canAdd={images.length < IMAGE_LIMITS.maxPerDay}
+      />
       {imgError ? <p className="mt-1 shrink-0 text-xs text-destructive">{imgError}</p> : null}
       <input
         ref={fileRef}
@@ -391,12 +388,7 @@ export function DayEditor({
   }
 
   const todoBox = (
-    <section
-      className={cn(
-        "mt-2 flex min-w-0 flex-col",
-        layout === "dock" ? "shrink-0" : "min-h-0 min-w-0 flex-1 overflow-hidden",
-      )}
-    >
+    <section className="mt-2 flex min-w-0 shrink-0 flex-col">
       <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2">
         <Label>待办</Label>
         <div className="flex items-center gap-1">
@@ -419,12 +411,7 @@ export function DayEditor({
           </button>
         </div>
       </div>
-      <div
-        className={cn(
-          "space-y-1",
-          layout === "dock" ? "" : "min-h-16 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-0.5",
-        )}
-      >
+      <div className="space-y-1">
         {todos.map((t, i) => (
           <div key={t.id} className="flex items-center gap-1.5">
             <button
@@ -783,12 +770,12 @@ export function DayEditor({
         {journalWideLayer}
         <div className="shrink-0">{chrome}</div>
         <div className="grid min-h-0 flex-1 gap-4 overflow-hidden py-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
-          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden pr-1">
-            <div className="flex min-h-0 min-w-0 flex-[7] flex-col overflow-hidden">{journalBox}</div>
+          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto overscroll-contain pr-1">
+            {journalBox}
             {imageBox}
-            <div className="flex min-h-0 min-w-0 flex-[3] flex-col overflow-hidden">{todoBox}</div>
+            {todoBox}
           </div>
-          <div className="min-h-0 min-w-0 overflow-y-auto lg:border-l lg:border-border lg:pl-4">
+          <div className="min-h-0 min-w-0 overflow-y-auto overscroll-contain lg:border-l lg:border-border lg:pl-4">
             {metaBox}
             <div className="mt-4">{entriesBox}</div>
           </div>
