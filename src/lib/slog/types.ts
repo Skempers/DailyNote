@@ -52,6 +52,8 @@ export type SheetKey = `${number}-H1` | `${number}-H2`;
 
 export type ViewMode = "week" | "month" | "half";
 
+export type LayerMode = "log" | "todo" | "both";
+
 export type DayRecord = {
   id: string;
   date: string;
@@ -105,6 +107,14 @@ export type LogSpan = {
   showWeeks: boolean;
 };
 
+export type DayTodo = {
+  id: string;
+  date: string;
+  body: string;
+  done: boolean;
+  sortOrder: number;
+};
+
 export type LogSettings = {
   favoriteLabel: string;
   semesterStart: string | null;
@@ -116,6 +126,7 @@ export type LogSnapshot = {
   days: Record<string, DayRecord>;
   entries: Record<string, LogEntry[]>;
   images: Record<string, LogImage[]>;
+  todos: Record<string, DayTodo[]>;
   notes: LogNote[];
   spans: LogSpan[];
 };
@@ -166,4 +177,10 @@ export const VIEW_MODES: { id: ViewMode; label: string; hint: string }[] = [
   { id: "week", label: "一周", hint: "七个大格子，一段话也能铺满" },
   { id: "month", label: "一月", hint: "看一个月的颜色和字" },
   { id: "half", label: "半年", hint: "原来那张总表" },
+];
+
+export const LAYER_MODES: { id: LayerMode; label: string; hint: string }[] = [
+  { id: "log", label: "日志", hint: "只看日记" },
+  { id: "todo", label: "待办", hint: "格子里只看待办" },
+  { id: "both", label: "一起", hint: "日记和待办都在格子里" },
 ];

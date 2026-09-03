@@ -157,6 +157,7 @@ function WeekOverview({
             day={snap.days[iso]}
             entries={snap.entries[iso] ?? []}
             images={snap.images?.[iso] ?? []}
+            todos={snap.todos?.[iso] ?? []}
             spans={snap.spans}
             selected={selected === iso}
             onSelect={onSelect}
@@ -214,6 +215,7 @@ function MonthOverview({
               day={snap.days[iso]}
               entries={snap.entries[iso] ?? []}
               images={snap.images?.[iso] ?? []}
+              todos={snap.todos?.[iso] ?? []}
               spans={snap.spans}
               selected={selected === iso}
               onSelect={onSelect}

@@ -95,11 +95,15 @@ function Login() {
             <p className="mt-4 text-sm text-muted-foreground">登录暂未打开。</p>
           )}
 
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            或者用邮箱
-            <span className="h-px flex-1 bg-border" />
-          </div>
+          {authEnabled && federated ? (
+            <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              或者用邮箱
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          ) : (
+            <div className="my-5" />
+          )}
 
           <form className="space-y-3" onSubmit={(e) => void onEmail(e)}>
             {mode === "up" ? (

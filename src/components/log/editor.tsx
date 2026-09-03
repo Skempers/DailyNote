@@ -10,6 +10,7 @@ import { formatLong, monthOf } from "@/lib/slog/calendar";
 import { preferDraft, readDraft } from "@/lib/slog/drafts";
 import type {
   DayRecord,
+  DayTodo,
   Emphasis,
   EntryKind,
   EntryMarker,
@@ -26,6 +27,7 @@ export type DayDraft = {
   day: DayRecord;
   entries: LogEntry[];
   images: LogImage[];
+  todos: DayTodo[];
 };
 
 export type SaveState = "idle" | "saving" | "saved" | "error" | "local";
@@ -53,7 +55,8 @@ function hydrate(iso: string, snap: LogSnapshot, draftNs: string): DayDraft {
     ? stored.entries
     : [...(snap.entries[iso] ?? [])];
   const images = [...(snap.images?.[iso] ?? [])];
-  return { day, entries, images };
+  const todos = [...(snap.todos?.[iso] ?? [])];
+  return { day, entries, images, todos };
 }
 
 export function DayEditor({
@@ -90,6 +93,7 @@ export function DayEditor({
   const [day, setDay] = useState(() => hydrate(iso, snap, draftNs).day);
   const [entries, setEntries] = useState(() => hydrate(iso, snap, draftNs).entries);
   const [images, setImages] = useState(() => hydrate(iso, snap, draftNs).images);
+  const [todos, setTodos] = useState(() => hydrate(iso, snap, draftNs).todos);
   const [body, setBody] = useState("");
   const [kind, setKind] = useState<EntryKind>("ordinary");
   const [marker, setMarker] = useState<EntryMarker | null>(null);
@@ -105,6 +109,7 @@ export function DayEditor({
     setDay(next.day);
     setEntries(next.entries);
     setImages(next.images);
+    setTodos(next.todos);
     setBody("");
     setMetaOpen(layout === "focus");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,8 +137,11 @@ export function DayEditor({
 
   const header = headerFill(day.primaryTone, monthOf(iso));
 
-  function persist(next: DayDraft, immediate = false) {
-    onSave(next, { immediate });
+  function persist(next: Omit<DayDraft, "todos"> & { todos?: DayTodo[] }, immediate = false) {
+    onSave(
+      { day: next.day, entries: next.entries, images: next.images, todos: next.todos ?? todos },
+      { immediate },
+    );
   }
 
   function commit() {
@@ -305,6 +313,91 @@ export function DayEditor({
           e.target.value = "";
         }}
       />
+    </section>
+  );
+
+  const todoPlaceholders = ["第一件事", "第二件事"];
+  const todoRows: DayTodo[] = (() => {
+    const rows = [...todos];
+    while (rows.length < 2) {
+      rows.push({
+        id: `tmp-todo-${iso}-${rows.length}`,
+        date: iso,
+        body: "",
+        done: false,
+        sortOrder: rows.length,
+      });
+    }
+    return rows;
+  })();
+
+  function commitTodos(nextRows: DayTodo[]) {
+    const stored = nextRows
+      .map((t, i) => ({
+        ...t,
+        body: t.body.trim(),
+        sortOrder: i,
+        id: t.id.startsWith("tmp-") ? crypto.randomUUID() : t.id,
+      }))
+      .filter((t) => t.body);
+    setTodos(stored);
+    persist({ day, entries, images, todos: stored }, true);
+  }
+
+  const todoBox = (
+    <section className="mt-2 flex min-h-0 min-w-0 flex-col overflow-hidden">
+      <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2">
+        <Label>待办</Label>
+        <button
+          type="button"
+          className="text-[11px] text-muted-foreground hover:text-foreground"
+          onClick={() =>
+            commitTodos([
+              ...todoRows,
+              { id: `tmp-todo-${iso}-${todoRows.length}`, date: iso, body: "", done: false, sortOrder: todoRows.length },
+            ])
+          }
+        >
+          + 添加一件
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-0.5">
+        {todoRows.map((t, i) => (
+          <div key={t.id} className="flex items-center gap-1.5">
+            <button
+              type="button"
+              aria-label={t.done ? "标为未完成" : "标为完成"}
+              onClick={() =>
+                commitTodos(todoRows.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)))
+              }
+              className={cn(
+                "size-4 shrink-0 rounded-sm border",
+                t.done ? "border-foreground bg-foreground" : "border-input bg-background",
+              )}
+            />
+            <Input
+              value={t.body}
+              placeholder={todoPlaceholders[i] ?? `第${i + 1}件事`}
+              className={cn("h-8 text-sm", t.done && "text-muted-foreground line-through")}
+              onChange={(e) => {
+                const body = e.target.value;
+                setTodos(todoRows.map((x) => (x.id === t.id ? { ...x, body } : x)));
+              }}
+              onBlur={(e) => commitTodos(todoRows.map((x) => (x.id === t.id ? { ...x, body: e.target.value } : x)))}
+            />
+            {i >= 2 ? (
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="删掉这件"
+                onClick={() => commitTodos(todoRows.filter((x) => x.id !== t.id))}
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            ) : null}
+          </div>
+        ))}
+      </div>
     </section>
   );
 
@@ -614,6 +707,8 @@ export function DayEditor({
             />
           </section>
 
+          <section className="border-t border-border px-4 py-4">{todoBox}</section>
+
           <div className="border-t border-border px-4 py-4">
             {metaBox}
             <div className="mt-6">{entriesBox}</div>
@@ -629,8 +724,9 @@ export function DayEditor({
         <div className="shrink-0">{chrome}</div>
         <div className="grid min-h-0 flex-1 gap-4 overflow-hidden py-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden pr-1">
-            {journalBox}
+            <div className="flex min-h-0 min-w-0 flex-[7] flex-col overflow-hidden">{journalBox}</div>
             {imageBox}
+            <div className="flex min-h-0 min-w-0 flex-[3] flex-col overflow-hidden">{todoBox}</div>
           </div>
           <div className="min-h-0 min-w-0 overflow-y-auto lg:border-l lg:border-border lg:pl-4">
             {metaBox}
@@ -657,8 +753,9 @@ export function DayEditor({
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0">{chrome}</div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden py-3">
-        {journalBox}
+        <div className="flex min-h-0 min-w-0 flex-[6] flex-col overflow-hidden">{journalBox}</div>
         {imageBox}
+        <div className="flex min-h-0 min-w-0 flex-[4] flex-col overflow-hidden">{todoBox}</div>
       </div>
       <div className="mt-2 min-h-0 max-h-[34%] shrink-0 overflow-y-auto border-t border-border pt-2">
         <button

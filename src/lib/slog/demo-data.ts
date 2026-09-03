@@ -351,6 +351,7 @@ export function buildDemoSnapshot(): LogSnapshot {
     days,
     entries,
     images: {},
+    todos: {},
     notes,
     spans,
   };
@@ -397,6 +398,7 @@ export function emptySnapshot(sheetKey: string, todayIso: string): LogSnapshot {
       ],
     },
     images: {},
+    todos: {},
     notes: [],
     spans: [],
   };

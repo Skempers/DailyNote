@@ -27,10 +27,12 @@ export function LiveLogWorkspace({
           for (const e of d.entries) {
             savedEntries.push(await live.saveEntry(e));
           }
+          const savedTodos = await live.saveTodos({ date: savedDay.date, todos: d.todos ?? [] });
           live.patchSnap((s: LogSnapshot) => ({
             ...s,
             days: { ...s.days, [savedDay.date]: savedDay },
             entries: { ...s.entries, [savedDay.date]: savedEntries },
+            todos: { ...(s.todos ?? {}), [savedDay.date]: savedTodos },
           }));
         },
         deleteEntry: async (id) => {

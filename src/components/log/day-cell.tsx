@@ -2,10 +2,11 @@ import { Star } from "lucide-react";
 import { memo } from "react";
 import { ENTRY_CLASS, headerFill, TONE_COLORS } from "@/lib/slog/colors";
 import { inSheet, isFuture, isToday, monthOf } from "@/lib/slog/calendar";
-import type { DayRecord, LogEntry, LogImage, LogSpan, ViewMode } from "@/lib/slog/types";
+import type { DayRecord, DayTodo, LogEntry, LogImage, LogSpan, ViewMode } from "@/lib/slog/types";
 import { cn } from "@/lib/utils";
 import { MarkerIcon } from "./markers";
 import { PhotoGrid } from "./photo-grid";
+import { useLayerMode } from "./layer-mode";
 
 export const DayCell = memo(function DayCell({
   iso,
@@ -13,6 +14,7 @@ export const DayCell = memo(function DayCell({
   day,
   entries,
   images,
+  todos,
   spans,
   selected,
   onSelect,
@@ -23,11 +25,13 @@ export const DayCell = memo(function DayCell({
   day?: DayRecord;
   entries: LogEntry[];
   images?: LogImage[];
+  todos?: DayTodo[];
   spans: LogSpan[];
   selected: boolean;
   onSelect: (iso: string) => void;
   density?: ViewMode | "overview";
 }) {
+  const layer = useLayerMode();
   const month = monthOf(iso);
   const inRange = inSheet(iso, sheetKey);
   const tone = day?.primaryTone ?? "month";
@@ -133,7 +137,7 @@ export const DayCell = memo(function DayCell({
           ) : null}
         </div>
       </div>
-      {p3.length && !compact ? (
+      {p3.length && !compact && layer !== "todo" ? (
         <div className="flex flex-wrap gap-x-1.5 gap-y-0.5 overflow-hidden px-1.5 pt-1">
           {p3.map((p) => (
             <span key={p} className="text-[9px] font-semibold underline decoration-foreground/40">
@@ -143,12 +147,12 @@ export const DayCell = memo(function DayCell({
         </div>
       ) : null}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden px-1.5 py-1">
-        {journal ? (
+        {layer !== "todo" && journal ? (
           <p className={cn("min-w-0 break-all whitespace-pre-wrap text-foreground/90", journalSize, journalClamp)}>
             {journal}
           </p>
         ) : null}
-        {entries.length ? (
+        {layer !== "todo" && entries.length ? (
           <ul className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-0.5">
             {entries.slice(0, entryClamp).map((e) => (
               <li
@@ -173,10 +177,32 @@ export const DayCell = memo(function DayCell({
             ) : null}
           </ul>
         ) : null}
-        {images?.length ? (
+        {layer !== "todo" && images?.length ? (
           <div className="min-w-0">
             <PhotoGrid images={images} size="sm" maxShow={thumbMax} />
           </div>
+        ) : null}
+        {layer !== "log" ? (
+          <ul className="flex min-w-0 flex-col gap-0.5">
+            {(todos ?? []).filter((t) => t.body.trim()).slice(0, layer === "todo" ? entryClamp + 4 : 4).map((t) => (
+              <li
+                key={t.id}
+                className={cn(
+                  "flex min-w-0 items-start gap-1 text-[11px] leading-snug",
+                  t.done && "text-muted-foreground line-through opacity-70",
+                )}
+              >
+                <span
+                  className={cn(
+                    "mt-0.5 size-2.5 shrink-0 rounded-sm border",
+                    t.done ? "border-foreground/40 bg-foreground/70" : "border-foreground/35",
+                  )}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 break-all">{t.body}</span>
+              </li>
+            ))}
+          </ul>
         ) : null}
       </div>
     </div>

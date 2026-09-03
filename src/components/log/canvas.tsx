@@ -174,6 +174,7 @@ function WeekRow({
           day={snap.days[iso]}
           entries={snap.entries[iso] ?? []}
           images={snap.images?.[iso] ?? []}
+          todos={snap.todos?.[iso] ?? []}
           spans={snap.spans}
           selected={selected === iso}
           onSelect={onSelect}
@@ -295,6 +296,7 @@ export function MonthBoard({
               day={snap.days[iso]}
               entries={snap.entries[iso] ?? []}
               images={snap.images?.[iso] ?? []}
+              todos={snap.todos?.[iso] ?? []}
               spans={snap.spans}
               selected={selected === iso}
               onSelect={onSelect}
@@ -364,6 +366,7 @@ export function WeekBoard({
                 day={snap.days[iso]}
                 entries={snap.entries[iso] ?? []}
                 images={snap.images?.[iso] ?? []}
+                todos={snap.todos?.[iso] ?? []}
                 spans={snap.spans}
                 selected={selected === iso}
                 onSelect={onSelect}

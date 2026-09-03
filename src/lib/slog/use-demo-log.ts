@@ -10,6 +10,7 @@ function cloneSnap(s: LogSnapshot): LogSnapshot {
     days: { ...s.days },
     entries: Object.fromEntries(Object.entries(s.entries).map(([k, v]) => [k, [...v]])),
     images: Object.fromEntries(Object.entries(s.images ?? {}).map(([k, v]) => [k, [...v]])),
+    todos: Object.fromEntries(Object.entries(s.todos ?? {}).map(([k, v]) => [k, [...v]])),
     notes: [...s.notes],
     spans: [...s.spans],
   };

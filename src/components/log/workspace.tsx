@@ -43,8 +43,8 @@ import {
 } from "@/lib/slog/calendar";
 import { compressImageFile, IMAGE_LIMITS } from "@/lib/slog/compress-image";
 import { clearDraft, writeDraft } from "@/lib/slog/drafts";
-import { SPAN_PALETTE, VIEW_MODES } from "@/lib/slog/types";
-import type { LogImage, LogNote, LogSnapshot, LogSpan, SearchHit, ViewMode } from "@/lib/slog/types";
+import { LAYER_MODES, SPAN_PALETTE, VIEW_MODES } from "@/lib/slog/types";
+import type { LayerMode, LogImage, LogNote, LogSnapshot, LogSpan, SearchHit, ViewMode } from "@/lib/slog/types";
 import { localSearch, useDemoLog } from "@/lib/slog/use-demo-log";
 import type { DayDraft, SaveState } from "./editor";
 import { DayEditor } from "./editor";
@@ -53,6 +53,7 @@ import { MonthBoard, SemesterCanvas, WeekBoard } from "./canvas";
 import { OverviewDialog } from "./overview";
 import { SearchPalette } from "./search-palette";
 import { cn } from "@/lib/utils";
+import { LayerProvider } from "./layer-mode";
 
 export type LogAdapter = {
   snap?: LogSnapshot;
@@ -77,6 +78,12 @@ function readView(): ViewMode {
   return v === "week" || v === "month" || v === "half" ? v : "half";
 }
 
+function readLayer(): LayerMode {
+  if (typeof window === "undefined") return "log";
+  const v = window.localStorage.getItem("slog-layer-mode");
+  return v === "todo" || v === "both" || v === "log" ? v : "log";
+}
+
 export function LogWorkspace({
   sheetKey,
   onSheetChange,
@@ -99,6 +106,7 @@ export function LogWorkspace({
   const [sheetPickOpen, setSheetPickOpen] = useState(false);
   const [spanOpen, setSpanOpen] = useState(false);
   const [view, setView] = useState<ViewMode>("half");
+  const [layer, setLayer] = useState<LayerMode>("log");
   const [mobileMonth, setMobileMonth] = useState(() =>
     clampMonthToSheet(sheetKey, new Date().getMonth() + 1),
   );
@@ -116,6 +124,7 @@ export function LogWorkspace({
 
   useEffect(() => {
     setView(readView());
+    setLayer(readLayer());
     pendingScroll.current = anchorDate(sheetKey, selected, Object.keys(snap?.days ?? {}));
     setViewReady(true);
   }, []);
@@ -209,6 +218,7 @@ export function LogWorkspace({
           days: { ...s.days, [draft.day.date]: draft.day },
           entries: { ...s.entries, [draft.day.date]: draft.entries },
           images: { ...(s.images ?? {}), [draft.day.date]: merged },
+          todos: { ...(s.todos ?? {}), [draft.day.date]: draft.todos ?? [] },
         };
       };
       if (adapter?.patchSnap) adapter.patchSnap(mut);
@@ -635,6 +645,7 @@ export function LogWorkspace({
       : null;
 
   return (
+    <LayerProvider value={layer}>
     <div className="flex min-h-0 flex-1 flex-col">
       {adapter?.guest ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-secondary px-3 py-1.5 text-xs md:px-5">
@@ -670,6 +681,26 @@ export function LogWorkspace({
               className={cn(
                 "rounded-sm px-2.5 py-1 text-xs",
                 view === m.id ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex rounded-md border border-border p-0.5">
+          {LAYER_MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              title={m.hint}
+              onClick={() => {
+                setLayer(m.id);
+                window.localStorage.setItem("slog-layer-mode", m.id);
+              }}
+              className={cn(
+                "rounded-sm px-2.5 py-1 text-xs",
+                layer === m.id ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
               {m.label}
@@ -773,6 +804,7 @@ export function LogWorkspace({
         }}
       />
     </div>
+    </LayerProvider>
   );
 }
 

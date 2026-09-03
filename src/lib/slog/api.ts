@@ -3,8 +3,10 @@ import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { sheetRange, toISODate } from "./calendar";
 import { buildDemoSnapshot, emptySnapshot } from "./demo-data";
+import { BACKUP_SCHEMA_VERSION } from "./schema";
 import type {
   DayRecord,
+  DayTodo,
   DayTone,
   Emphasis,
   EntryKind,
@@ -169,6 +171,24 @@ function mapSpan(r: SpanRow): LogSpan {
   };
 }
 
+type TodoRow = {
+  id: string;
+  day_date: string;
+  body: string;
+  done: boolean;
+  sort_order: number;
+};
+
+function mapTodo(r: TodoRow): DayTodo {
+  return {
+    id: r.id,
+    date: r.day_date,
+    body: r.body,
+    done: Boolean(r.done),
+    sortOrder: Number(r.sort_order) || 0,
+  };
+}
+
 function realId(id: string | undefined) {
   if (id && !id.startsWith("tmp-") && id !== "welcome-day") return id;
   return crypto.randomUUID();
@@ -180,7 +200,7 @@ async function readSnapshot(userId: string, sheetKey: string): Promise<LogSnapsh
   const from = toISODate(start);
   const to = toISODate(end);
 
-  const [settingsRows, dayRows, entryRows, imageRows, noteRows, spanRows] = await Promise.all([
+  const [settingsRows, dayRows, entryRows, imageRows, noteRows, spanRows, todoRows] = await Promise.all([
     sql<SettingsRow>`select favorite_label, semester_start, seeded from slog_settings where user_id = ${userId}`,
     sql<DayRow>`select id, day_date, primary_tone, secondary_tone, location, header_note, p3, journal from slog_days where user_id = ${userId} and day_date >= ${from} and day_date <= ${to}`,
     sql<EntryRow>`select id, day_date, kind, body, marker, emphasis, starred, sort_order from slog_entries where user_id = ${userId} and day_date >= ${from} and day_date <= ${to} order by sort_order, created_at`,
@@ -189,6 +209,7 @@ async function readSnapshot(userId: string, sheetKey: string): Promise<LogSnapsh
       from slog_images where user_id = ${userId} and day_date >= ${from} and day_date <= ${to} order by sort_order, created_at`,
     sql<NoteRow>`select id, sheet_key, week_start, kind, title, body, tone, emphasized, sort_order from slog_notes where user_id = ${userId} and sheet_key = ${sheetKey} order by sort_order, created_at`,
     sql<SpanRow>`select id, start_date, end_date, kind, label, color, show_weeks from slog_spans where user_id = ${userId} and start_date <= ${to} and end_date >= ${from}`,
+    sql<TodoRow>`select id, day_date, body, done, sort_order from slog_todos where user_id = ${userId} and day_date >= ${from} and day_date <= ${to} order by sort_order, created_at`,
   ]);
 
   const days: Record<string, DayRecord> = {};
@@ -200,6 +221,10 @@ async function readSnapshot(userId: string, sheetKey: string): Promise<LogSnapsh
   const images: Record<string, LogImage[]> = {};
   for (const r of imageRows) {
     (images[r.day_date] ??= []).push(mapImageMeta(r));
+  }
+  const todos: Record<string, DayTodo[]> = {};
+  for (const r of todoRows) {
+    (todos[r.day_date] ??= []).push(mapTodo(r));
   }
   const settings: LogSettings = settingsRows[0]
     ? {
@@ -214,6 +239,7 @@ async function readSnapshot(userId: string, sheetKey: string): Promise<LogSnapsh
     days,
     entries,
     images,
+    todos,
     notes: noteRows.map(mapNote),
     spans: spanRows.map(mapSpan),
   };
@@ -285,6 +311,7 @@ export const clearDemoSheet = createServerFn({ method: "POST" })
     const [days] = await sql<{ n: number }>`select count(*)::int as n from slog_days where user_id = ${context.userId} and day_date >= ${from} and day_date <= ${to}`;
     await sql`delete from slog_images where user_id = ${context.userId} and day_date >= ${from} and day_date <= ${to}`;
     await sql`delete from slog_entries where user_id = ${context.userId} and day_date >= ${from} and day_date <= ${to}`;
+    await sql`delete from slog_todos where user_id = ${context.userId} and day_date >= ${from} and day_date <= ${to}`;
     await sql`delete from slog_days where user_id = ${context.userId} and day_date >= ${from} and day_date <= ${to}`;
     await sql`delete from slog_notes where user_id = ${context.userId} and sheet_key = ${"2024-H2"}`;
     await sql`delete from slog_spans where user_id = ${context.userId} and start_date >= ${from} and start_date <= ${to}`;
@@ -374,6 +401,24 @@ export const removeNote = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const saveDayTodos = createServerFn({ method: "POST" })
+  .validator((d: { date: string; todos: DayTodo[] }) => d)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const kept = data.todos
+      .map((t, i) => ({ ...t, body: (t.body ?? "").trim(), sortOrder: i }))
+      .filter((t) => t.body);
+    await sql`delete from slog_todos where user_id = ${context.userId} and day_date = ${data.date}`;
+    const saved: DayTodo[] = [];
+    for (const t of kept) {
+      const id = crypto.randomUUID();
+      await sql`insert into slog_todos (id, user_id, day_date, body, done, sort_order) values (${id}, ${context.userId}, ${data.date}, ${t.body}, ${Boolean(t.done)}, ${t.sortOrder})`;
+      saved.push({ id, date: data.date, body: t.body, done: Boolean(t.done), sortOrder: t.sortOrder });
+    }
+    return saved;
+  });
+
 export const upsertSpan = createServerFn({ method: "POST" })
   .validator((s: LogSpan) => s)
   .middleware([authMiddleware])
@@ -437,6 +482,7 @@ export const loadUsage = createServerFn({ method: "GET" })
   });
 
 export type FullBackup = {
+  schemaVersion: number;
   exportedAt: string;
   userId: string;
   settings: LogSettings;
@@ -445,20 +491,23 @@ export type FullBackup = {
   images: LogImage[];
   notes: LogNote[];
   spans: LogSpan[];
+  todos: DayTodo[];
 };
 
 async function backupForUser(userId: string): Promise<FullBackup> {
   const sql = await getSql();
-  const [settingsRows, dayRows, entryRows, imageRows, noteRows, spanRows] = await Promise.all([
+  const [settingsRows, dayRows, entryRows, imageRows, noteRows, spanRows, todoRows] = await Promise.all([
     sql<SettingsRow>`select favorite_label, semester_start, seeded from slog_settings where user_id = ${userId}`,
     sql<DayRow>`select id, day_date, primary_tone, secondary_tone, location, header_note, p3, journal from slog_days where user_id = ${userId} order by day_date`,
     sql<EntryRow>`select id, day_date, kind, body, marker, emphasis, starred, sort_order from slog_entries where user_id = ${userId} order by day_date, sort_order`,
     sql<ImageRow>`select id, day_date, data_url, thumb_url, caption, sort_order from slog_images where user_id = ${userId} order by day_date, sort_order`,
     sql<NoteRow>`select id, sheet_key, week_start, kind, title, body, tone, emphasized, sort_order from slog_notes where user_id = ${userId} order by sort_order`,
     sql<SpanRow>`select id, start_date, end_date, kind, label, color, show_weeks from slog_spans where user_id = ${userId} order by start_date`,
+    sql<TodoRow>`select id, day_date, body, done, sort_order from slog_todos where user_id = ${userId} order by day_date, sort_order`,
   ]);
   const row = settingsRows[0];
   return {
+    schemaVersion: BACKUP_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     userId,
     settings: {
@@ -470,6 +519,7 @@ async function backupForUser(userId: string): Promise<FullBackup> {
     images: imageRows.map(mapImage),
     notes: noteRows.map(mapNote),
     spans: spanRows.map(mapSpan),
+    todos: todoRows.map(mapTodo),
   };
 }
 
@@ -658,6 +708,7 @@ export const maybeWebdavBackup = createServerFn({ method: "POST" })
 
 function snapToBackup(snap: LogSnapshot, userId = "import"): FullBackup {
   return {
+    schemaVersion: BACKUP_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     userId,
     settings: snap.settings ?? { favoriteLabel: "照相", semesterStart: null },
@@ -666,6 +717,7 @@ function snapToBackup(snap: LogSnapshot, userId = "import"): FullBackup {
     images: Object.values(snap.images ?? {}).flat(),
     notes: snap.notes ?? [],
     spans: snap.spans ?? [],
+    todos: Object.values(snap.todos ?? {}).flat(),
   };
 }
 
@@ -695,6 +747,7 @@ function normalizeImport(raw: unknown): FullBackup[] {
     if (days.length) {
       return [
         {
+          schemaVersion: 1,
           exportedAt: new Date().toISOString(),
           userId: "drafts",
           settings: { favoriteLabel: "照相", semesterStart: null },
@@ -703,6 +756,7 @@ function normalizeImport(raw: unknown): FullBackup[] {
           images: [],
           notes: [],
           spans: [],
+          todos: [],
         },
       ];
     }
@@ -718,7 +772,7 @@ export const importBackup = createServerFn({ method: "POST" })
     const packs = normalizeImport(backup);
     const sql = await getSql();
     const userId = context.userId;
-    const counts = { days: 0, entries: 0, images: 0, notes: 0, spans: 0, skippedDays: 0, imageErrors: 0 };
+    const counts = { days: 0, entries: 0, images: 0, notes: 0, spans: 0, todos: 0, skippedDays: 0, imageErrors: 0 };
     for (const pack of packs) {
       await importPack(sql, userId, pack, mode, counts);
     }
@@ -740,7 +794,7 @@ async function importPack(
   userId: string,
   pack: FullBackup,
   mode: ImportMode,
-  counts: { days: number; entries: number; images: number; notes: number; spans: number; skippedDays: number; imageErrors: number },
+  counts: { days: number; entries: number; images: number; notes: number; spans: number; todos: number; skippedDays: number; imageErrors: number },
 ) {
   if (mode === "replace-overlap" && pack.settings?.favoriteLabel) {
     await sql`insert into slog_settings (user_id, favorite_label, semester_start, seeded) values (${userId}, ${pack.settings.favoriteLabel}, ${pack.settings.semesterStart}, true) on conflict (user_id) do update set favorite_label = excluded.favorite_label, semester_start = excluded.semester_start`;
@@ -751,6 +805,7 @@ async function importPack(
     for (const date of dates) {
       await sql`delete from slog_entries where user_id = ${userId} and day_date = ${date}`;
       await sql`delete from slog_images where user_id = ${userId} and day_date = ${date}`;
+      await sql`delete from slog_todos where user_id = ${userId} and day_date = ${date}`;
     }
   }
 
@@ -832,6 +887,16 @@ async function importPack(
     }
     await sql`insert into slog_spans (id, user_id, start_date, end_date, kind, label, color, show_weeks) values (${crypto.randomUUID()}, ${userId}, ${s.startDate}, ${s.endDate}, ${s.kind ?? "trip"}, ${s.label}, ${s.color ?? "trip-pink"}, ${Boolean(s.showWeeks)})`;
     counts.spans += 1;
+  }
+
+  for (const t of pack.todos ?? []) {
+    if (!t?.date || !(t.body ?? "").trim()) continue;
+    if (mode === "fill") {
+      const dup = await sql<{ c: number }>`select count(*)::int as c from slog_todos where user_id = ${userId} and day_date = ${t.date} and body = ${t.body}`;
+      if ((dup[0]?.c ?? 0) > 0) continue;
+    }
+    await sql`insert into slog_todos (id, user_id, day_date, body, done, sort_order) values (${crypto.randomUUID()}, ${userId}, ${t.date}, ${t.body.trim()}, ${Boolean(t.done)}, ${t.sortOrder ?? 0})`;
+    counts.todos += 1;
   }
 }
 

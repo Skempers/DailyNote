@@ -35,6 +35,7 @@ function withoutDemo(data: FullBackup): FullBackup {
     images: data.images.filter((i) => !isDemoDate(i.date)),
     notes: data.notes.filter((n) => n.sheetKey !== "2024-H2"),
     spans: data.spans.filter((s) => s.startDate < DEMO_FROM || s.startDate > DEMO_TO),
+    todos: (data.todos ?? []).filter((t) => !isDemoDate(t.date)),
   };
 }
 

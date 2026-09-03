@@ -8,6 +8,7 @@ import {
   removeEntry,
   removeImage,
   removeNote,
+  saveDayTodos,
   searchLog,
   upsertDay,
   upsertEntry,
@@ -15,7 +16,7 @@ import {
   upsertNote,
   upsertSpan,
 } from "./api";
-import type { DayRecord, LogEntry, LogImage, LogNote, LogSnapshot, LogSpan, SearchHit } from "./types";
+import type { DayRecord, DayTodo, LogEntry, LogImage, LogNote, LogSnapshot, LogSpan, SearchHit } from "./types";
 
 export function useLiveLog(sheetKey: string) {
   const qc = useQueryClient();
@@ -41,6 +42,9 @@ export function useLiveLog(sheetKey: string) {
   const saveNoteMut = useMutation({ mutationFn: (n: LogNote) => upsertNote({ data: n }) });
   const delNoteMut = useMutation({ mutationFn: (id: string) => removeNote({ data: id }) });
   const saveSpanMut = useMutation({ mutationFn: (s: LogSpan) => upsertSpan({ data: s }) });
+  const saveTodosMut = useMutation({
+    mutationFn: (d: { date: string; todos: DayTodo[] }) => saveDayTodos({ data: d }),
+  });
   const importMut = useMutation({
     mutationFn: () => importDemoSheet(),
     onSuccess: (snap) => {
@@ -64,6 +68,7 @@ export function useLiveLog(sheetKey: string) {
     saveNote: saveNoteMut.mutateAsync,
     deleteNote: delNoteMut.mutateAsync,
     saveSpan: saveSpanMut.mutateAsync,
+    saveTodos: saveTodosMut.mutateAsync,
     importDemo: importMut.mutateAsync,
     importing: importMut.isPending,
   };
