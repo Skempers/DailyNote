@@ -18,7 +18,10 @@ export function PhotoLightbox({
 }) {
   const startX = useRef<number | null>(null);
   const swiped = useRef(false);
+  const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const [exiting, setExiting] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const total = images.length;
   const safeIndex = total ? ((index % total) + total) % total : 0;
   const current = total ? images[safeIndex] : undefined;
@@ -28,6 +31,15 @@ export function PhotoLightbox({
     if (exiting) return;
     setExiting(true);
   }
+
+  function resetView() {
+    setScale(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  useEffect(() => {
+    resetView();
+  }, [safeIndex]);
 
   useEffect(() => {
     if (!exiting) return;
@@ -39,7 +51,11 @@ export function PhotoLightbox({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") requestClose();
+      if (e.key === "Escape") {
+        if (scale > 1) resetView();
+        else requestClose();
+      }
+      if (scale > 1) return;
       if (e.key === "ArrowLeft") onIndex(safeIndex - 1);
       if (e.key === "ArrowRight") onIndex(safeIndex + 1);
     }
@@ -49,19 +65,26 @@ export function PhotoLightbox({
       window.removeEventListener("keydown", onKey);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onIndex, safeIndex]);
+  }, [onIndex, safeIndex, scale]);
 
   if (typeof document === "undefined" || !current) return null;
 
   function prev(e?: { stopPropagation(): void; preventDefault(): void }) {
     e?.preventDefault();
     e?.stopPropagation();
+    resetView();
     onIndex(safeIndex - 1);
   }
   function next(e?: { stopPropagation(): void; preventDefault(): void }) {
     e?.preventDefault();
     e?.stopPropagation();
+    resetView();
     onIndex(safeIndex + 1);
+  }
+
+  function toggleZoom() {
+    if (scale > 1) resetView();
+    else setScale(2.4);
   }
 
   return createPortal(
@@ -87,6 +110,7 @@ export function PhotoLightbox({
         e.stopPropagation();
         const x0 = startX.current;
         startX.current = null;
+        if (scale > 1) return;
         const delta = x0 == null ? 0 : e.clientX - x0;
         if (Math.abs(delta) > 56) {
           if (delta > 0) prev();
@@ -98,6 +122,12 @@ export function PhotoLightbox({
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
+      }}
+      onWheel={(e) => {
+        e.preventDefault();
+        const nextScale = Math.min(5, Math.max(1, scale * (e.deltaY < 0 ? 1.12 : 0.9)));
+        setScale(nextScale);
+        if (nextScale <= 1) setPan({ x: 0, y: 0 });
       }}
     >
       <button
@@ -113,7 +143,7 @@ export function PhotoLightbox({
         <X className="size-4" />
       </button>
 
-      {total > 1 ? (
+      {total > 1 && scale <= 1 ? (
         <button
           type="button"
           className="absolute top-1/2 left-2 z-10 -translate-y-1/2 rounded-full bg-background/90 p-2 text-foreground hover:bg-background md:left-6"
@@ -125,7 +155,7 @@ export function PhotoLightbox({
         </button>
       ) : null}
 
-      {total > 1 ? (
+      {total > 1 && scale <= 1 ? (
         <button
           type="button"
           className="absolute top-1/2 right-2 z-10 -translate-y-1/2 rounded-full bg-background/90 p-2 text-foreground hover:bg-background md:right-6"
@@ -138,7 +168,7 @@ export function PhotoLightbox({
       ) : null}
 
       <figure
-        className="relative flex max-h-[90vh] max-w-[min(96vw,72rem)] flex-col items-center"
+        className="relative flex max-h-[90vh] max-w-[min(96vw,72rem)] flex-col items-center overflow-hidden"
         onPointerUp={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
@@ -146,8 +176,33 @@ export function PhotoLightbox({
           <img
             src={src}
             alt={current.caption || "照片"}
-            className="max-h-[82vh] max-w-full rounded-md object-contain shadow-border"
+            className={cn(
+              "max-h-[82vh] max-w-full rounded-md object-contain shadow-border",
+              scale > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in",
+            )}
+            style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: "center center" }}
             draggable={false}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (swiped.current) return;
+              toggleZoom();
+            }}
+            onPointerDown={(e) => {
+              if (scale <= 1) return;
+              e.stopPropagation();
+              (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+              drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+            }}
+            onPointerMove={(e) => {
+              if (!drag.current) return;
+              setPan({
+                x: drag.current.px + (e.clientX - drag.current.x),
+                y: drag.current.py + (e.clientY - drag.current.y),
+              });
+            }}
+            onPointerUp={() => {
+              drag.current = null;
+            }}
           />
         ) : (
           <div className="grid size-48 place-items-center rounded-md bg-muted text-sm text-muted-foreground">
@@ -157,7 +212,9 @@ export function PhotoLightbox({
         <figcaption className="mt-3 text-xs text-background/80">
           {safeIndex + 1} / {total}
           {current.caption ? ` · ${current.caption}` : ""}
-          <span className="ml-2 hidden opacity-70 md:inline">← → 切换 · Esc 关闭</span>
+          <span className="ml-2 hidden opacity-70 md:inline">
+            点击放大 · 滚轮缩放 · 拖动查看 · Esc 关闭
+          </span>
         </figcaption>
       </figure>
     </div>,
