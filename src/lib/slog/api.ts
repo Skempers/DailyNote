@@ -714,53 +714,126 @@ export const importBackup = createServerFn({ method: "POST" })
   .validator((raw: unknown) => raw)
   .middleware([authMiddleware])
   .handler(async ({ context, data: raw }) => {
-    const packs = normalizeImport(raw);
+    const { backup, mode } = parseImportArg(raw);
+    const packs = normalizeImport(backup);
     const sql = await getSql();
     const userId = context.userId;
-    let days = 0;
-    let entries = 0;
-    let images = 0;
-    let notes = 0;
-    let spans = 0;
+    const counts = { days: 0, entries: 0, images: 0, notes: 0, spans: 0, skippedDays: 0, imageErrors: 0 };
     for (const pack of packs) {
-      if (pack.settings?.favoriteLabel) {
-        await sql`insert into slog_settings (user_id, favorite_label, semester_start, seeded) values (${userId}, ${pack.settings.favoriteLabel}, ${pack.settings.semesterStart}, true) on conflict (user_id) do update set favorite_label = excluded.favorite_label, semester_start = excluded.semester_start`;
-      }
-      for (const d of pack.days ?? []) {
-        if (!d?.date) continue;
-        const id = realId(d.id);
-        await sql`insert into slog_days (id, user_id, day_date, primary_tone, secondary_tone, location, header_note, p3, journal) values (${id}, ${userId}, ${d.date}, ${d.primaryTone ?? "month"}, ${d.secondaryTone ?? null}, ${d.location ?? ""}, ${d.headerNote ?? ""}, ${JSON.stringify(d.p3 ?? [])}, ${d.journal ?? ""}) on conflict (user_id, day_date) do update set primary_tone = excluded.primary_tone, secondary_tone = excluded.secondary_tone, location = excluded.location, header_note = excluded.header_note, p3 = excluded.p3, journal = case when length(excluded.journal) > length(slog_days.journal) then excluded.journal else slog_days.journal end, updated_at = now()`;
-        days += 1;
-      }
-      for (const e of pack.entries ?? []) {
-        if (!e?.date || !e.body) continue;
-        const id = realId(e.id);
-        await sql`insert into slog_entries (id, user_id, day_date, kind, body, marker, emphasis, starred, sort_order) values (${id}, ${userId}, ${e.date}, ${e.kind ?? "ordinary"}, ${e.body}, ${e.marker ?? null}, ${e.emphasis ?? "normal"}, ${Boolean(e.starred)}, ${e.sortOrder ?? 0}) on conflict (id) do update set kind = excluded.kind, body = excluded.body, marker = excluded.marker, emphasis = excluded.emphasis, starred = excluded.starred, sort_order = excluded.sort_order where slog_entries.user_id = ${userId}`;
-        entries += 1;
-      }
-      for (const img of pack.images ?? []) {
-        const url = img.dataUrl || img.thumbUrl || "";
-        if (!url.startsWith("data:image/")) continue;
-        const existing = await sql<{ c: number }>`select count(*)::int as c from slog_images where user_id = ${userId} and day_date = ${img.date}`;
-        if ((existing[0]?.c ?? 0) >= 12) continue;
-        const id = realId(img.id);
-        const thumb = img.thumbUrl || "";
-        await sql`insert into slog_images (id, user_id, day_date, data_url, thumb_url, caption, sort_order) values (${id}, ${userId}, ${img.date}, ${url}, ${thumb}, ${img.caption ?? ""}, ${img.sortOrder ?? 0}) on conflict (id) do update set data_url = excluded.data_url, thumb_url = excluded.thumb_url, caption = excluded.caption, sort_order = excluded.sort_order where slog_images.user_id = ${userId}`;
-        images += 1;
-      }
-      for (const n of pack.notes ?? []) {
-        const id = realId(n.id);
-        await sql`insert into slog_notes (id, user_id, sheet_key, week_start, kind, title, body, tone, emphasized, sort_order) values (${id}, ${userId}, ${n.sheetKey}, ${n.weekStart}, ${n.kind}, ${n.title}, ${n.body}, ${n.tone}, ${n.emphasized}, ${n.sortOrder}) on conflict (id) do update set title = excluded.title, body = excluded.body, kind = excluded.kind, tone = excluded.tone, emphasized = excluded.emphasized, sort_order = excluded.sort_order where slog_notes.user_id = ${userId}`;
-        notes += 1;
-      }
-      for (const s of pack.spans ?? []) {
-        const id = realId(s.id);
-        await sql`insert into slog_spans (id, user_id, start_date, end_date, kind, label, color, show_weeks) values (${id}, ${userId}, ${s.startDate}, ${s.endDate}, ${s.kind}, ${s.label}, ${s.color}, ${s.showWeeks}) on conflict (id) do update set end_date = excluded.end_date, kind = excluded.kind, label = excluded.label, color = excluded.color, show_weeks = excluded.show_weeks where slog_spans.user_id = ${userId}`;
-        spans += 1;
-      }
+      await importPack(sql, userId, pack, mode, counts);
     }
-    return { days, entries, images, notes, spans };
+    return counts;
   });
+
+type ImportMode = "fill" | "replace-overlap";
+
+function parseImportArg(raw: unknown): { backup: unknown; mode: ImportMode } {
+  if (raw && typeof raw === "object" && "backup" in raw) {
+    const d = raw as { backup: unknown; mode?: string };
+    return { backup: d.backup, mode: d.mode === "replace-overlap" ? "replace-overlap" : "fill" };
+  }
+  return { backup: raw, mode: "fill" };
+}
+
+async function importPack(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  userId: string,
+  pack: FullBackup,
+  mode: ImportMode,
+  counts: { days: number; entries: number; images: number; notes: number; spans: number; skippedDays: number; imageErrors: number },
+) {
+  if (mode === "replace-overlap" && pack.settings?.favoriteLabel) {
+    await sql`insert into slog_settings (user_id, favorite_label, semester_start, seeded) values (${userId}, ${pack.settings.favoriteLabel}, ${pack.settings.semesterStart}, true) on conflict (user_id) do update set favorite_label = excluded.favorite_label, semester_start = excluded.semester_start`;
+  }
+
+  const dates = [...new Set((pack.days ?? []).map((d) => d.date).filter(Boolean))];
+  if (mode === "replace-overlap") {
+    for (const date of dates) {
+      await sql`delete from slog_entries where user_id = ${userId} and day_date = ${date}`;
+      await sql`delete from slog_images where user_id = ${userId} and day_date = ${date}`;
+    }
+  }
+
+  for (const d of pack.days ?? []) {
+    if (!d?.date) continue;
+    const existing = await sql<{
+      id: string;
+      journal: string | null;
+      header_note: string | null;
+      location: string | null;
+      p3: string;
+      primary_tone: string;
+    }>`select id, journal, header_note, location, p3, primary_tone from slog_days where user_id = ${userId} and day_date = ${d.date}`;
+    const row = existing[0];
+    if (row && mode === "fill") {
+      const journal = (row.journal ?? "").trim() ? row.journal : (d.journal ?? "");
+      const header = (row.header_note ?? "").trim() ? row.header_note : (d.headerNote ?? "");
+      const location = (row.location ?? "").trim() ? row.location : (d.location ?? "");
+      const p3 = parseP3(row.p3).some(Boolean) ? row.p3 : JSON.stringify(d.p3 ?? []);
+      await sql`update slog_days set journal = ${journal}, header_note = ${header}, location = ${location}, p3 = ${p3}, updated_at = now() where id = ${row.id} and user_id = ${userId}`;
+      counts.skippedDays += 1;
+      continue;
+    }
+    if (row && mode === "replace-overlap") {
+      await sql`update slog_days set primary_tone = ${d.primaryTone ?? "month"}, secondary_tone = ${d.secondaryTone ?? null}, location = ${d.location ?? ""}, header_note = ${d.headerNote ?? ""}, p3 = ${JSON.stringify(d.p3 ?? [])}, journal = ${d.journal ?? ""}, updated_at = now() where id = ${row.id} and user_id = ${userId}`;
+      counts.days += 1;
+      continue;
+    }
+    await sql`insert into slog_days (id, user_id, day_date, primary_tone, secondary_tone, location, header_note, p3, journal) values (${crypto.randomUUID()}, ${userId}, ${d.date}, ${d.primaryTone ?? "month"}, ${d.secondaryTone ?? null}, ${d.location ?? ""}, ${d.headerNote ?? ""}, ${JSON.stringify(d.p3 ?? [])}, ${d.journal ?? ""}) on conflict (user_id, day_date) do nothing`;
+    counts.days += 1;
+  }
+
+  for (const e of pack.entries ?? []) {
+    if (!e?.date || !e.body) continue;
+    if (mode === "fill") {
+      const dup = await sql<{ c: number }>`select count(*)::int as c from slog_entries where user_id = ${userId} and day_date = ${e.date} and body = ${e.body}`;
+      if ((dup[0]?.c ?? 0) > 0) continue;
+    }
+    await sql`insert into slog_entries (id, user_id, day_date, kind, body, marker, emphasis, starred, sort_order) values (${crypto.randomUUID()}, ${userId}, ${e.date}, ${e.kind ?? "ordinary"}, ${e.body}, ${e.marker ?? null}, ${e.emphasis ?? "normal"}, ${Boolean(e.starred)}, ${e.sortOrder ?? 0})`;
+    counts.entries += 1;
+  }
+
+  for (const img of pack.images ?? []) {
+    const url = img.dataUrl || img.thumbUrl || "";
+    if (!url.startsWith("data:image/")) {
+      counts.imageErrors += 1;
+      continue;
+    }
+    try {
+      const existing = await sql<{ c: number }>`select count(*)::int as c from slog_images where user_id = ${userId} and day_date = ${img.date}`;
+      if ((existing[0]?.c ?? 0) >= 12) continue;
+      if (mode === "fill") {
+        const same = await sql<{ c: number }>`select count(*)::int as c from slog_images where user_id = ${userId} and day_date = ${img.date} and data_url = ${url}`;
+        if ((same[0]?.c ?? 0) > 0) continue;
+      }
+      const thumb = img.thumbUrl && img.thumbUrl.startsWith("data:image/") ? img.thumbUrl : "";
+      await sql`insert into slog_images (id, user_id, day_date, data_url, thumb_url, caption, sort_order) values (${crypto.randomUUID()}, ${userId}, ${img.date}, ${url}, ${thumb}, ${img.caption ?? ""}, ${img.sortOrder ?? 0})`;
+      counts.images += 1;
+    } catch {
+      counts.imageErrors += 1;
+    }
+  }
+
+  for (const n of pack.notes ?? []) {
+    if (!n?.sheetKey) continue;
+    if (mode === "fill") {
+      const dup = await sql<{ c: number }>`select count(*)::int as c from slog_notes where user_id = ${userId} and sheet_key = ${n.sheetKey} and body = ${n.body ?? ""}`;
+      if ((dup[0]?.c ?? 0) > 0) continue;
+    }
+    await sql`insert into slog_notes (id, user_id, sheet_key, week_start, kind, title, body, tone, emphasized, sort_order) values (${crypto.randomUUID()}, ${userId}, ${n.sheetKey}, ${n.weekStart}, ${n.kind ?? "plan"}, ${n.title ?? ""}, ${n.body ?? ""}, ${n.tone ?? null}, ${Boolean(n.emphasized)}, ${n.sortOrder ?? 0})`;
+    counts.notes += 1;
+  }
+
+  for (const s of pack.spans ?? []) {
+    if (!s?.startDate || !s.endDate) continue;
+    if (mode === "fill") {
+      const dup = await sql<{ c: number }>`select count(*)::int as c from slog_spans where user_id = ${userId} and start_date = ${s.startDate} and end_date = ${s.endDate} and label = ${s.label}`;
+      if ((dup[0]?.c ?? 0) > 0) continue;
+    }
+    await sql`insert into slog_spans (id, user_id, start_date, end_date, kind, label, color, show_weeks) values (${crypto.randomUUID()}, ${userId}, ${s.startDate}, ${s.endDate}, ${s.kind ?? "trip"}, ${s.label}, ${s.color ?? "trip-pink"}, ${Boolean(s.showWeeks)})`;
+    counts.spans += 1;
+  }
+}
 
 export async function dumpPreviewAllUsers(): Promise<{
   exportedAt: string;

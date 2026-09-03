@@ -64,6 +64,7 @@ function BackupPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [fileHint, setFileHint] = useState<string | null>(null);
   const [includeDemo, setIncludeDemo] = useState(false);
+  const [importMode, setImportMode] = useState<"fill" | "replace-overlap">("fill");
 
   async function fromServer() {
     setBusy("server");
@@ -131,9 +132,11 @@ function BackupPage() {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text) as unknown;
-      const result = await importBackup({ data: parsed });
+      const result = await importBackup({ data: { backup: parsed, mode: importMode } });
+      const skip = result.skippedDays ? `有 ${result.skippedDays} 天你这边已经写过，没覆盖。` : "";
+      const imgErr = result.imageErrors ? ` ${result.imageErrors} 张图跳过（太大或格式不对）。` : "";
       setFileHint(
-        `已导入：${result.days} 天、${result.entries} 条、${result.images} 张照片、${result.notes} 条周记、${result.spans} 段行程。去「我的日志」刷新即可看到。`,
+        `已导入：新增/写入 ${result.days} 天、${result.entries} 条、${result.images} 张照片、${result.notes} 条周记、${result.spans} 段行程。${skip}${imgErr}去「我的日志」刷新即可看到。`,
       );
     } catch (err) {
       setFileHint(err instanceof Error ? err.message : "导入失败");
@@ -183,8 +186,28 @@ function BackupPage() {
         <section className="mt-4 rounded-xl bg-card p-4 shadow-border">
           <h2 className="font-medium">把备份导进当前账号</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            先登录，再选 JSON。访客数据、账号备份、网盘里下回来的文件都能认。
+            默认只补空的：已有日子、已有正文和重复的条目不会被换成备份里的内容。访客数据、账号备份、网盘里下回来的 JSON 都能认。
           </p>
+          <div className="mt-3 space-y-1.5 text-sm">
+            <label className="flex items-start gap-2">
+              <input
+                type="radio"
+                className="mt-1"
+                checked={importMode === "fill"}
+                onChange={() => setImportMode("fill")}
+              />
+              <span>只补没有的（推荐）· 你现在写过的日子原样保留</span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input
+                type="radio"
+                className="mt-1"
+                checked={importMode === "replace-overlap"}
+                onChange={() => setImportMode("replace-overlap")}
+              />
+              <span>覆盖日期重合的日子 · 只改备份里出现的那些天，其它天不动</span>
+            </label>
+          </div>
           <label className="mt-3 inline-flex">
             <input
               type="file"
@@ -280,10 +303,10 @@ function WebdavCard({
     <section className="mt-4 rounded-xl bg-card p-4 shadow-border">
       <h2 className="font-medium">备份到我的网盘（WebDAV）</h2>
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-        这是公开协议：填文件夹地址、用户名、密码即可，不是只给坚果云用。Nextcloud、群晖、威联通、InfiniCLOUD、TeraCLOUD 都能用。
-        夸克、百度、阿里云盘官方没有 WebDAV，不能直接填；若你用 AList 等工具把夸克转成 WebDAV，地址填那个中转即可。
-        填好后，打开网站时若距上次已超过 12 小时，会自动只传有改动的日子（增量）。立刻备份则推一份完整 JSON。
+        把日记推到你自己的网盘。普通用户用坚果云即可，三栏填好就能测。打开网站超过 12 小时会自动增量备份。
       </p>
+      <JianguoHint />
+      <QuarkHint />
       {!user ? (
         <p className="mt-3 text-sm text-muted-foreground">登录后才能绑定网盘。</p>
       ) : (
@@ -341,5 +364,71 @@ function WebdavCard({
         </div>
       )}
     </section>
+  );
+}
+
+function JianguoHint() {
+  return (
+    <details className="mt-3 rounded-lg border border-border bg-muted/40 px-3 py-2" open>
+      <summary className="cursor-pointer text-sm font-medium">推荐：坚果云（不用装任何工具）</summary>
+      <div className="mt-2 space-y-2 text-xs leading-relaxed text-muted-foreground">
+        <p>国内能直接用的官方 WebDAV，注册后生成一个「应用密码」填到上面三栏。</p>
+        <ol className="list-decimal space-y-1 pl-4">
+          <li>
+            打开{" "}
+            <a className="underline" href="https://www.jianguoyun.com/" target="_blank" rel="noreferrer">
+              坚果云官网
+            </a>{" "}
+            注册/登录。
+          </li>
+          <li>右上角账户名 → 账户信息 → 安全选项 → 第三方应用 → 添加应用，生成密码。</li>
+          <li>
+            文件夹地址填{" "}
+            <code className="rounded bg-background px-1">https://dav.jianguoyun.com/dav/SLog/</code>
+            （没有 SLog 文件夹会在第一次备份时尝试创建）。
+          </li>
+          <li>用户名填坚果云邮箱，密码填刚才生成的应用密码（不是登录密码）。</li>
+        </ol>
+        <p>
+          官方说明：
+          <a className="ml-1 underline" href="https://help.jianguoyun.com/?p=2064" target="_blank" rel="noreferrer">
+            如何开启 WebDAV
+          </a>
+        </p>
+      </div>
+    </details>
+  );
+}
+
+function QuarkHint() {
+  return (
+    <details className="mt-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+      <summary className="cursor-pointer text-sm font-medium">夸克 / 百度 / 阿里：没有官方接口，要自己架中转</summary>
+      <div className="mt-2 space-y-2 text-xs leading-relaxed text-muted-foreground">
+        <p>
+          这些网盘不提供 WebDAV。所谓「转 WebDAV 工具」不是一个 App 商店能下载的软件，而是要你自己有一台 24
+          小时开着的电脑、NAS 或服务器，再跑下面这种开源项目。普通用户请用坚果云，不必走这条。
+        </p>
+        <ul className="list-disc space-y-1 pl-4">
+          <li>
+            <a className="underline" href="https://github.com/chenqimiao/quarkdrive-webdav" target="_blank" rel="noreferrer">
+              quarkdrive-webdav
+            </a>
+            ：专门把夸克变成 WebDAV，要填夸克 Cookie。
+          </li>
+          <li>
+            <a className="underline" href="https://github.com/OpenListTeam/OpenList" target="_blank" rel="noreferrer">
+              OpenList
+            </a>
+            （AList 的后续）：可挂夸克、阿里等，再对外提供 WebDAV。夸克说明在
+            <a className="ml-1 underline" href="https://doc.oplist.org/guide/drivers/quark" target="_blank" rel="noreferrer">
+              这里
+            </a>
+            。
+          </li>
+        </ul>
+        <p>装好后，把中转给出的地址、用户名、密码填到本页上面三栏。网站不会替你安装这些工具。</p>
+      </div>
+    </details>
   );
 }

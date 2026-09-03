@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
+import { loadAuthFlags } from "@/lib/auth/flags";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,15 @@ function Login() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [federated, setFederated] = useState(false);
+
+  useEffect(() => {
+    const err = new URLSearchParams(window.location.search).get("error");
+    if (err) setError("第三方登录没走完（回调失败）。请用邮箱登录，或再试一次。");
+    void loadAuthFlags()
+      .then((f) => setFederated(f.federated))
+      .catch(() => setFederated(false));
+  }, []);
 
   useEffect(() => {
     if (!isPending && user) void navigate({ to: "/log" });
@@ -54,7 +64,7 @@ function Login() {
             日记、周期、情绪都是私人的。登录之后，电脑和手机写的是同一份。
           </p>
 
-          {authEnabled ? (
+          {authEnabled && federated ? (
             <div className="mt-6 space-y-2">
               {GROK_PROVIDERS.map((p) => (
                 <Button
@@ -62,12 +72,25 @@ function Login() {
                   type="button"
                   variant="outline"
                   className="w-full"
-                  onClick={() => void signIn(p.providerId, { callbackURL: "/log" })}
+                  disabled={busy}
+                  onClick={() => {
+                    setError(null);
+                    setBusy(true);
+                    void signIn(p.providerId, { callbackURL: "/log", errorCallbackURL: "/login?error=oauth" })
+                      .catch((err) => {
+                        setError(err instanceof Error ? err.message : "第三方登录失败，请用邮箱。");
+                      })
+                      .finally(() => setBusy(false));
+                  }}
                 >
                   使用 {p.label} 继续
                 </Button>
               ))}
             </div>
+          ) : authEnabled ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              这个站点还没接上谷歌 / X 的登录回调，请用下面的邮箱注册或登录。
+            </p>
           ) : (
             <p className="mt-4 text-sm text-muted-foreground">登录暂未打开。</p>
           )}
