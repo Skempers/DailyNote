@@ -164,10 +164,6 @@ export function DayEditor({
     onClose();
   }
 
-  function commit() {
-    persist({ day, entries, images }, true);
-  }
-
   function patchDay(partial: Partial<DayRecord>, immediate = false) {
     const nextDay = { ...day, ...partial };
     setDay(nextDay);
