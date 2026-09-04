@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useWebdavAutoBackup } from "@/lib/slog/use-webdav-auto";
 
 export function SiteHeader({ solid = false }: { solid?: boolean }) {
+  const { user } = useCurrentUserState();
   return (
     <header
       className={cn(
@@ -14,7 +15,7 @@ export function SiteHeader({ solid = false }: { solid?: boolean }) {
         solid ? "border-b border-border bg-background" : "bg-background/80 backdrop-blur-sm",
       )}
     >
-      <Link to="/" className="flex items-baseline gap-2">
+      <Link to={user ? "/log" : "/"} className="flex items-baseline gap-2">
         <span className="font-display text-2xl font-medium tracking-tight">SLog</span>
         <span className="text-xs tracking-[0.2em] text-muted-foreground">航海日志</span>
       </Link>
