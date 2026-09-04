@@ -432,6 +432,16 @@ export const loadDayImages = createServerFn({ method: "GET" })
     return rows.map(mapImage);
   });
 
+export const loadImage = createServerFn({ method: "GET" })
+  .validator((id: string) => id)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data: id }) => {
+    const sql = await getSql();
+    const rows = await sql<ImageRow>`select id, day_date, data_url, thumb_url, caption, sort_order from slog_images where user_id = ${context.userId} and id = ${id} limit 1`;
+    if (!rows[0]) throw new Error("找不到这张图");
+    return mapImage(rows[0]);
+  });
+
 export const removeImage = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .middleware([authMiddleware])

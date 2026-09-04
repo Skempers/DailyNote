@@ -42,7 +42,7 @@ import {
   toISODate,
   weekOf,
 } from "@/lib/slog/calendar";
-import { compressImageFile, IMAGE_LIMITS } from "@/lib/slog/compress-image";
+import { compressImageFile } from "@/lib/slog/compress-image";
 import { clearDraft, writeDraft } from "@/lib/slog/drafts";
 import { LAYER_MODES, MORE_MODES, SPAN_PALETTE, VIEW_MODES } from "@/lib/slog/types";
 import type { LayerMode, LifeMap, LogImage, LogNote, LogSnapshot, LogSpan, SearchHit, ViewMode } from "@/lib/slog/types";
@@ -392,10 +392,8 @@ export function LogWorkspace({
   async function handleAddImages(files: FileList | File[]) {
     if (!selected || !snap) return;
     const current = snap.images?.[selected] ?? [];
-    const room = IMAGE_LIMITS.maxPerDay - current.length;
-    if (room <= 0) throw new Error(`一天最多 ${IMAGE_LIMITS.maxPerDay} 张`);
     const added: LogImage[] = [];
-    for (const file of Array.from(files).slice(0, room)) {
+    for (const file of Array.from(files)) {
       const packed = await compressImageFile(file);
       const img: LogImage = {
         id: crypto.randomUUID(),

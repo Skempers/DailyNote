@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { compressImageFile, IMAGE_LIMITS } from "@/lib/slog/compress-image";
+import { compressImageFile } from "@/lib/slog/compress-image";
 import { headerFill, TONE_COLORS } from "@/lib/slog/colors";
 import { formatLong, monthOf } from "@/lib/slog/calendar";
 import { preferDraft, readDraft } from "@/lib/slog/drafts";
@@ -253,10 +253,6 @@ export function DayEditor({
     try {
       const next = [...images];
       for (const file of Array.from(list)) {
-        if (next.length >= IMAGE_LIMITS.maxPerDay) {
-          setImgError(`一天最多 ${IMAGE_LIMITS.maxPerDay} 张`);
-          break;
-        }
         const packed = await compressImageFile(file);
         next.push({
           id: crypto.randomUUID(),
@@ -335,18 +331,16 @@ export function DayEditor({
     <section className="mt-2 flex min-w-0 shrink-0 flex-col">
       <div className="mb-1 flex shrink-0 items-center justify-between">
         <Label>照片</Label>
-        <span className="text-[11px] text-muted-foreground">
-          {images.length}/{IMAGE_LIMITS.maxPerDay}
-        </span>
+        <span className="text-[11px] text-muted-foreground">{images.length} 张</span>
       </div>
       <PhotoGrid
         images={images}
         size="editor"
-        maxShow={IMAGE_LIMITS.maxPerDay}
+        maxShow={999}
         onDelete={dropImage}
         onAdd={() => fileRef.current?.click()}
         busy={imgBusy}
-        canAdd={images.length < IMAGE_LIMITS.maxPerDay}
+        canAdd
       />
       {imgError ? <p className="mt-1 shrink-0 text-xs text-destructive">{imgError}</p> : null}
       <input
@@ -362,8 +356,6 @@ export function DayEditor({
       />
     </section>
   );
-
-  const todoPlaceholders = ["第一件事", "第二件事"];
 
   function addTodoRow() {
     setTodos((rows) => [
@@ -425,7 +417,7 @@ export function DayEditor({
             />
             <Input
               value={t.body}
-              placeholder={todoPlaceholders[i] ?? `第${i + 1}件事`}
+              placeholder={`第${i + 1}件事`}
               className={cn("h-8 text-sm", t.done && "text-muted-foreground line-through")}
               onChange={(e) => patchTodo(t.id, { body: e.target.value })}
               onBlur={(e) => patchTodo(t.id, { body: e.target.value }, true)}
@@ -726,18 +718,16 @@ export function DayEditor({
           <section className="border-t border-border px-4 py-4">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-medium">照片</p>
-              <span className="text-[11px] text-muted-foreground">
-                {images.length}/{IMAGE_LIMITS.maxPerDay}
-              </span>
+              <span className="text-[11px] text-muted-foreground">{images.length} 张</span>
             </div>
             <PhotoGrid
               images={images}
               size="editor"
-              maxShow={IMAGE_LIMITS.maxPerDay}
+              maxShow={999}
               onDelete={dropImage}
               onAdd={() => fileRef.current?.click()}
               busy={imgBusy}
-              canAdd={images.length < IMAGE_LIMITS.maxPerDay}
+              canAdd
             />
             {imgError ? <p className="mt-1 text-xs text-destructive">{imgError}</p> : null}
             <input

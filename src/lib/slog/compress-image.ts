@@ -2,7 +2,7 @@ const MAX_EDGE = 1280;
 const THUMB_EDGE = 180;
 const MAX_CHARS = 420_000;
 const THUMB_CHARS = 28_000;
-const MAX_PER_DAY = 12;
+const MAX_PER_DAY = 999;
 
 export const IMAGE_LIMITS = { maxPerDay: MAX_PER_DAY, maxChars: MAX_CHARS };
 
@@ -77,6 +77,10 @@ export function imageThumb(img: { dataUrl: string; thumbUrl?: string }) {
   return img.thumbUrl || img.dataUrl;
 }
 
+export function isFullImage(img: { dataUrl: string; thumbUrl?: string }) {
+  return Boolean(img.dataUrl) && img.dataUrl.length > 32_000;
+}
+
 export function imageFull(img: { dataUrl: string; thumbUrl?: string }) {
-  return img.dataUrl || img.thumbUrl || "";
+  return isFullImage(img) ? img.dataUrl : "";
 }

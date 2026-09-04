@@ -25,7 +25,7 @@ export function PhotoGrid({
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [shield, setShield] = useState(false);
-  const shown = images.slice(0, maxShow);
+  const shown = maxShow >= images.length ? images : images.slice(0, maxShow);
   const extra = images.length - shown.length;
 
   useEffect(() => {
@@ -37,14 +37,15 @@ export function PhotoGrid({
   if (!shown.length && !canAdd && openIndex == null && !shield) return null;
 
   const editor = size === "editor";
-  const cols = size === "sm" ? 3 : 4;
 
   return (
     <>
       <div
         className={cn(
           "grid min-w-0 gap-0.5",
-          editor ? "grid-cols-[repeat(auto-fill,minmax(4rem,4rem))] gap-1" : cols === 3 ? "grid-cols-3" : "grid-cols-4",
+          editor
+            ? "grid-cols-[repeat(auto-fill,minmax(4rem,4rem))] gap-1"
+            : "grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] sm:grid-cols-4",
         )}
       >
         {shown.map((img, i) => {
@@ -133,6 +134,7 @@ export function PhotoGrid({
             setShield(true);
           }}
           onIndex={setOpenIndex}
+          onDelete={onDelete}
         />
       ) : null}
       {shield && typeof document !== "undefined"
