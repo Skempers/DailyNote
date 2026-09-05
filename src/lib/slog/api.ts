@@ -413,14 +413,23 @@ export const upsertImage = createServerFn({ method: "POST" })
     if (!img.dataUrl.startsWith("data:image/")) throw new Error("invalid image");
     if (img.dataUrl.length > 900_000) throw new Error("image too large");
     const sql = await getSql();
-    const existing = await sql<{ c: number }>`select count(*)::int as c from slog_images where user_id = ${context.userId} and day_date = ${img.date}`;
-    if ((existing[0]?.c ?? 0) >= 12 && !(img.id && !img.id.startsWith("tmp-"))) {
-      throw new Error("一天最多 12 张图");
-    }
     const id = realId(img.id);
     const thumb = img.thumbUrl || "";
     await sql`insert into slog_images (id, user_id, day_date, data_url, thumb_url, caption, sort_order) values (${id}, ${context.userId}, ${img.date}, ${img.dataUrl}, ${thumb}, ${img.caption ?? ""}, ${img.sortOrder}) on conflict (id) do update set data_url = excluded.data_url, thumb_url = excluded.thumb_url, caption = excluded.caption, sort_order = excluded.sort_order where slog_images.user_id = ${context.userId}`;
     return { ...img, id };
+  });
+
+export const reorderDayImages = createServerFn({ method: "POST" })
+  .validator((d: { date: string; ids: string[] }) => d)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    for (let i = 0; i < data.ids.length; i++) {
+      const id = data.ids[i];
+      if (!id) continue;
+      await sql`update slog_images set sort_order = ${i} where id = ${id} and user_id = ${context.userId} and day_date = ${data.date}`;
+    }
+    return { ok: true };
   });
 
 export const loadDayImages = createServerFn({ method: "GET" })

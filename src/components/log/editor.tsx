@@ -92,6 +92,7 @@ export function DayEditor({
   onDeleteEntry,
   onAddImages,
   onDeleteImage,
+  onReorderImages,
   onExpand,
   onDock,
   ephemeral = false,
@@ -108,6 +109,7 @@ export function DayEditor({
   onDeleteEntry: (id: string) => void;
   onAddImages?: (files: FileList | File[]) => Promise<void> | void;
   onDeleteImage?: (id: string) => void;
+  onReorderImages?: (next: LogImage[]) => void;
   onExpand?: () => void;
   onDock?: () => void;
 }) {
@@ -273,10 +275,17 @@ export function DayEditor({
   }
 
   function dropImage(id: string) {
-    const next = images.filter((i) => i.id !== id);
+    const next = images.filter((i) => i.id !== id).map((img, i) => ({ ...img, sortOrder: i }));
     setImages(next);
     persist({ day, entries, images: next }, true);
     onDeleteImage?.(id);
+  }
+
+  function reorderImages(next: LogImage[]) {
+    const numbered = next.map((img, i) => ({ ...img, sortOrder: i }));
+    setImages(numbered);
+    persist({ day, entries, images: numbered }, true);
+    onReorderImages?.(numbered);
   }
 
   const saveLabel =
@@ -338,6 +347,7 @@ export function DayEditor({
         size="editor"
         maxShow={999}
         onDelete={dropImage}
+        onReorder={reorderImages}
         onAdd={() => fileRef.current?.click()}
         busy={imgBusy}
         canAdd
@@ -725,6 +735,7 @@ export function DayEditor({
               size="editor"
               maxShow={999}
               onDelete={dropImage}
+              onReorder={reorderImages}
               onAdd={() => fileRef.current?.click()}
               busy={imgBusy}
               canAdd

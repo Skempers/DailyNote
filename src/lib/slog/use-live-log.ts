@@ -8,6 +8,7 @@ import {
   removeEntry,
   removeImage,
   removeNote,
+  reorderDayImages,
   saveDayTodos,
   searchLog,
   upsertDay,
@@ -39,6 +40,9 @@ export function useLiveLog(sheetKey: string) {
   const delEntryMut = useMutation({ mutationFn: (id: string) => removeEntry({ data: id }) });
   const saveImageMut = useMutation({ mutationFn: (img: LogImage) => upsertImage({ data: img }) });
   const delImageMut = useMutation({ mutationFn: (id: string) => removeImage({ data: id }) });
+  const reorderImageMut = useMutation({
+    mutationFn: (d: { date: string; ids: string[] }) => reorderDayImages({ data: d }),
+  });
   const saveNoteMut = useMutation({ mutationFn: (n: LogNote) => upsertNote({ data: n }) });
   const delNoteMut = useMutation({ mutationFn: (id: string) => removeNote({ data: id }) });
   const saveSpanMut = useMutation({ mutationFn: (s: LogSpan) => upsertSpan({ data: s }) });
@@ -64,6 +68,7 @@ export function useLiveLog(sheetKey: string) {
     deleteEntry: delEntryMut.mutateAsync,
     saveImage: saveImageMut.mutateAsync,
     deleteImage: delImageMut.mutateAsync,
+    reorderImages: (date: string, ids: string[]) => reorderImageMut.mutateAsync({ date, ids }),
     loadDayImages: fetchDayImages,
     saveNote: saveNoteMut.mutateAsync,
     deleteNote: delNoteMut.mutateAsync,

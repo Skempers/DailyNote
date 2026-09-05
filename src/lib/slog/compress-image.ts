@@ -3,8 +3,9 @@ const THUMB_EDGE = 180;
 const MAX_CHARS = 420_000;
 const THUMB_CHARS = 28_000;
 const MAX_PER_DAY = 999;
+const MAX_FILE_BYTES = 100 * 1024 * 1024;
 
-export const IMAGE_LIMITS = { maxPerDay: MAX_PER_DAY, maxChars: MAX_CHARS };
+export const IMAGE_LIMITS = { maxPerDay: MAX_PER_DAY, maxChars: MAX_CHARS, maxFileBytes: MAX_FILE_BYTES };
 
 export type CompressedImage = {
   dataUrl: string;
@@ -34,28 +35,77 @@ function drawToUrl(
 
   let quality = startQuality;
   let url = canvas.toDataURL("image/jpeg", quality);
-  while (url.length > maxChars && quality > 0.38) {
-    quality -= 0.1;
+  while (url.length > maxChars && quality > 0.32) {
+    quality = Math.max(0.32, quality - 0.1);
     url = canvas.toDataURL("image/jpeg", quality);
   }
   return url;
 }
 
-export async function compressImageFile(file: File): Promise<CompressedImage> {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("请选择图片文件");
-  }
-  if (file.size > 12 * 1024 * 1024) {
-    throw new Error("图片超过 12MB，请换一张小一点的");
-  }
-
-  const bitmap = await createImageBitmap(file);
+async function decodeBitmap(file: File): Promise<ImageBitmap> {
+  let bmp: ImageBitmap | null = null;
   try {
-    const dataUrl = drawToUrl(bitmap, MAX_EDGE, 0.82, MAX_CHARS);
-    if (dataUrl.length > MAX_CHARS * 1.15) {
-      throw new Error("压缩后仍然太大，请裁切后再试");
+    bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("这张图打不开，试试 JPG、PNG 或 WebP"));
+        el.src = url;
+      });
+      bmp = await createImageBitmap(img);
+    } finally {
+      URL.revokeObjectURL(url);
     }
-    const thumbUrl = drawToUrl(bitmap, THUMB_EDGE, 0.62, THUMB_CHARS);
+  }
+  const maxDim = Math.max(bmp.width, bmp.height);
+  if (maxDim > 2560) {
+    const scale = 2560 / maxDim;
+    const w = Math.max(1, Math.round(bmp.width * scale));
+    const h = Math.max(1, Math.round(bmp.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(bmp, 0, 0, w, h);
+      bmp.close();
+      bmp = await createImageBitmap(canvas);
+    }
+  }
+  return bmp;
+}
+
+export async function compressImageFile(file: File): Promise<CompressedImage> {
+  const looksImage =
+    file.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|avif|bmp|heic|heif)$/i.test(file.name);
+  if (!looksImage) throw new Error("请选择图片文件");
+  if (file.size > MAX_FILE_BYTES) throw new Error("图片超过 100MB，换一张小一点的");
+
+  const bitmap = await decodeBitmap(file);
+  try {
+    let edge = MAX_EDGE;
+    let quality = 0.82;
+    let dataUrl = "";
+    for (let i = 0; i < 12; i++) {
+      try {
+        dataUrl = drawToUrl(bitmap, edge, quality, MAX_CHARS);
+      } catch {
+        dataUrl = "";
+      }
+      if (dataUrl && dataUrl.length <= MAX_CHARS) break;
+      if (quality > 0.4) {
+        quality = Math.max(0.4, quality - 0.14);
+        continue;
+      }
+      edge = Math.max(280, Math.round(edge * 0.72));
+      quality = 0.7;
+      if (edge <= 280 && dataUrl) break;
+    }
+    if (!dataUrl) throw new Error("这张图处理失败，换一张再试");
+    const thumbUrl = drawToUrl(bitmap, THUMB_EDGE, 0.58, THUMB_CHARS);
     return { dataUrl, thumbUrl };
   } finally {
     bitmap.close();
@@ -63,11 +113,19 @@ export async function compressImageFile(file: File): Promise<CompressedImage> {
 }
 
 export async function compressAvatarFile(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("请选择图片文件");
-  if (file.size > 8 * 1024 * 1024) throw new Error("图片超过 8MB");
-  const bitmap = await createImageBitmap(file);
+  const looksImage =
+    file.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|avif|bmp)$/i.test(file.name);
+  if (!looksImage) throw new Error("请选择图片文件");
+  if (file.size > MAX_FILE_BYTES) throw new Error("图片超过 100MB");
+  const bitmap = await decodeBitmap(file);
   try {
-    return drawToUrl(bitmap, 320, 0.82, 80_000);
+    let edge = 320;
+    let url = drawToUrl(bitmap, edge, 0.82, 80_000);
+    while (url.length > 80_000 && edge > 96) {
+      edge = Math.max(96, Math.round(edge * 0.75));
+      url = drawToUrl(bitmap, edge, 0.68, 80_000);
+    }
+    return url;
   } finally {
     bitmap.close();
   }

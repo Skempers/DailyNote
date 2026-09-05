@@ -63,6 +63,7 @@ export type LogAdapter = {
   deleteEntry?: (id: string) => Promise<void> | void;
   saveImage?: (img: LogImage) => Promise<LogImage | void> | LogImage | void;
   deleteImage?: (id: string) => Promise<void> | void;
+  reorderImages?: (date: string, ids: string[]) => Promise<void> | void;
   saveNote?: (n: LogNote) => Promise<void> | void;
   deleteNote?: (id: string) => Promise<void> | void;
   saveSpan?: (s: LogSpan) => Promise<void> | void;
@@ -431,6 +432,18 @@ export function LogWorkspace({
     else demo.setSnap(mut);
   }
 
+  async function handleReorderImages(next: LogImage[]) {
+    if (!selected) return;
+    const numbered = next.map((img, i) => ({ ...img, sortOrder: i }));
+    const mut = (s: LogSnapshot): LogSnapshot => ({
+      ...s,
+      images: { ...(s.images ?? {}), [selected]: numbered },
+    });
+    if (adapter?.patchSnap) adapter.patchSnap(mut);
+    else demo.setSnap(mut);
+    if (adapter?.reorderImages) await adapter.reorderImages(selected, numbered.map((i) => i.id));
+  }
+
   async function handleSaveNote(n: LogNote) {
     if (adapter?.saveNote) {
       await adapter.saveNote(n);
@@ -551,6 +564,7 @@ export function LogWorkspace({
       onDeleteEntry={(id) => void handleDeleteEntry(id)}
       onAddImages={handleAddImages}
       onDeleteImage={(id) => void handleDeleteImage(id)}
+      onReorderImages={(next) => void handleReorderImages(next)}
       onExpand={() => setWriteMode("focus")}
       onDock={() => setWriteMode("dock")}
     />

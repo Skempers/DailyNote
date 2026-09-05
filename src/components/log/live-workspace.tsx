@@ -53,6 +53,9 @@ export function LiveLogWorkspace({
         deleteImage: async (id) => {
           await live.deleteImage(id);
         },
+        reorderImages: async (date, ids) => {
+          await live.reorderImages(date, ids);
+        },
         loadDayImages: live.loadDayImages,
         loadYear: (year) => loadYear({ data: year }),
         loadLife: () => loadLifeMap(),

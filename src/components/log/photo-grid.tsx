@@ -1,10 +1,12 @@
 import { ImagePlus, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { imageThumb } from "@/lib/slog/compress-image";
 import type { LogImage } from "@/lib/slog/types";
 import { cn } from "@/lib/utils";
 import { PhotoLightbox } from "./lightbox";
+
+const HOLD_MS = 380;
 
 export function PhotoGrid({
   images,
@@ -12,6 +14,7 @@ export function PhotoGrid({
   maxShow = 9,
   onDelete,
   onAdd,
+  onReorder,
   busy = false,
   canAdd = false,
 }: {
@@ -20,19 +23,68 @@ export function PhotoGrid({
   maxShow?: number;
   onDelete?: (id: string) => void;
   onAdd?: () => void;
+  onReorder?: (next: LogImage[]) => void;
   busy?: boolean;
   canAdd?: boolean;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [shield, setShield] = useState(false);
-  const shown = maxShow >= images.length ? images : images.slice(0, maxShow);
-  const extra = images.length - shown.length;
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [live, setLive] = useState<LogImage[] | null>(null);
+  const holdTimer = useRef<number | null>(null);
+  const startPt = useRef<{ x: number; y: number } | null>(null);
+  const didDrag = useRef(false);
+  const imagesRef = useRef(images);
+  imagesRef.current = images;
+  const source = live ?? images;
+  const shown = maxShow >= source.length ? source : source.slice(0, maxShow);
+  const extra = source.length - shown.length;
+  const canSort = Boolean(onReorder) && size === "editor";
 
   useEffect(() => {
     if (!shield) return;
     const t = window.setTimeout(() => setShield(false), 500);
     return () => window.clearTimeout(t);
   }, [shield]);
+
+  useEffect(() => {
+    return () => {
+      if (holdTimer.current) window.clearTimeout(holdTimer.current);
+    };
+  }, []);
+
+  function clearHold() {
+    if (holdTimer.current) {
+      window.clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  }
+
+  function finishDrag() {
+    clearHold();
+    if (dragId && live && didDrag.current) {
+      onReorder?.(live.map((img, i) => ({ ...img, sortOrder: i })));
+    }
+    setDragId(null);
+    setLive(null);
+    startPt.current = null;
+  }
+
+  function moveOver(overId: string) {
+    if (!dragId || dragId === overId) return;
+    setLive((cur) => {
+      const list = [...(cur ?? images)];
+      const from = list.findIndex((x) => x.id === dragId);
+      const to = list.findIndex((x) => x.id === overId);
+      if (from < 0 || to < 0) return cur;
+      didDrag.current = true;
+      const next = [...list];
+      const [item] = next.splice(from, 1);
+      if (!item) return cur;
+      next.splice(to, 0, item);
+      return next;
+    });
+  }
 
   if (!shown.length && !canAdd && openIndex == null && !shield) return null;
 
@@ -55,23 +107,69 @@ export function PhotoGrid({
             <button
               key={img.id}
               type="button"
-              onPointerDown={(e) => e.stopPropagation()}
+              data-photo-id={img.id}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (!canSort || overflowLast) return;
+                didDrag.current = false;
+                startPt.current = { x: e.clientX, y: e.clientY };
+                const target = e.currentTarget;
+                const pointerId = e.pointerId;
+                clearHold();
+                holdTimer.current = window.setTimeout(() => {
+                  setDragId(img.id);
+                  setLive([...imagesRef.current]);
+                  try {
+                    target.setPointerCapture(pointerId);
+                  } catch {
+                    /* ignore */
+                  }
+                  navigator.vibrate?.(12);
+                }, HOLD_MS);
+              }}
+              onPointerMove={(e) => {
+                if (dragId) {
+                  const hit = document
+                    .elementFromPoint(e.clientX, e.clientY)
+                    ?.closest("[data-photo-id]")
+                    ?.getAttribute("data-photo-id");
+                  if (hit) moveOver(hit);
+                  return;
+                }
+                const start = startPt.current;
+                if (!start) return;
+                if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) clearHold();
+              }}
+              onPointerUp={(e) => {
+                e.stopPropagation();
+                const dragged = Boolean(dragId) && didDrag.current;
+                finishDrag();
+                if (dragged) e.preventDefault();
+              }}
+              onPointerCancel={finishDrag}
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
+                if (didDrag.current) {
+                  didDrag.current = false;
+                  return;
+                }
                 setOpenIndex(i);
               }}
               className={cn(
                 "group relative min-w-0 overflow-hidden rounded-[3px] bg-muted outline outline-1 -outline-offset-1 outline-foreground/10",
                 editor ? "size-16" : "aspect-square",
+                dragId === img.id && "z-10 scale-105 ring-2 ring-primary",
+                dragId && dragId !== img.id && "opacity-80",
               )}
-              aria-label={`查看照片 ${i + 1}`}
+              style={canSort ? { touchAction: "none" } : undefined}
+              aria-label={canSort ? `照片 ${i + 1}，长按可调整顺序` : `查看照片 ${i + 1}`}
             >
               {src ? (
                 <img
                   src={src}
                   alt={img.caption || "照片"}
-                  className="absolute inset-0 size-full object-cover"
+                  className="pointer-events-none absolute inset-0 size-full object-cover"
                   draggable={false}
                 />
               ) : (
@@ -82,11 +180,12 @@ export function PhotoGrid({
                   +{extra}
                 </div>
               ) : null}
-              {onDelete && !overflowLast ? (
+              {onDelete && !overflowLast && !dragId ? (
                 <span
                   role="button"
                   tabIndex={0}
                   className="absolute top-0.5 right-0.5 rounded-full bg-foreground/70 p-0.5 text-background md:opacity-0 md:transition-opacity md:group-hover:opacity-100"
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
@@ -127,7 +226,7 @@ export function PhotoGrid({
       </div>
       {openIndex != null && images.length ? (
         <PhotoLightbox
-          images={images}
+          images={live ?? images}
           index={openIndex}
           onClose={() => {
             setOpenIndex(null);
