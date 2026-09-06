@@ -233,7 +233,6 @@ export function PhotoGrid({
             setShield(true);
           }}
           onIndex={setOpenIndex}
-          onDelete={onDelete}
         />
       ) : null}
       {shield && typeof document !== "undefined"
