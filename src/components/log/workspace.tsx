@@ -31,6 +31,8 @@ import {
   clampMonthToSheet,
   clampWeekToSheet,
   currentSheetKey,
+  journalDate,
+  journalISO,
   formatWeekRange,
   inSheet,
   monthStartsInSheet,
@@ -112,16 +114,16 @@ export function LogWorkspace({
   const [view, setView] = useState<ViewMode>("half");
   const [layer, setLayer] = useState<LayerMode>("log");
   const [mobileMonth, setMobileMonth] = useState(() =>
-    clampMonthToSheet(sheetKey, new Date().getMonth() + 1),
+    clampMonthToSheet(sheetKey, journalDate().getMonth() + 1),
   );
-  const [weekMonday, setWeekMonday] = useState(() => clampWeekToSheet(sheetKey, toISODate(new Date())));
+  const [weekMonday, setWeekMonday] = useState(() => clampWeekToSheet(sheetKey, journalISO()));
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [yearSnap, setYearSnap] = useState<LogSnapshot | null>(null);
   const [lifeMap, setLifeMap] = useState<LifeMap | null>(null);
   const [widePending, setWidePending] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const pendingScroll = useRef<string | null>(toISODate(new Date()));
+  const pendingScroll = useRef<string | null>(journalISO());
   const [xl, setXl] = useState(false);
   const [bpReady, setBpReady] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -479,7 +481,7 @@ export function LogWorkspace({
   }
 
   function goToday() {
-    const today = toISODate(new Date());
+    const today = journalISO();
     const key = currentSheetKey();
     if (key !== sheetKey) onSheetChange(key);
     pickDay(today);
@@ -965,7 +967,7 @@ export function LogWorkspace({
       <SpanDialog
         open={spanOpen}
         onOpenChange={setSpanOpen}
-        defaultDate={selected ?? toISODate(new Date())}
+        defaultDate={selected ?? journalISO()}
         onSave={(sp) => {
           void handleSaveSpan(sp);
           setSpanOpen(false);

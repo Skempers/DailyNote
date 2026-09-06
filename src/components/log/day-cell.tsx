@@ -1,7 +1,7 @@
 import { Star } from "lucide-react";
 import { memo } from "react";
 import { ENTRY_CLASS, headerFill, TONE_COLORS } from "@/lib/slog/colors";
-import { inSheet, isFuture, isToday, monthOf } from "@/lib/slog/calendar";
+import { inSheet, isFuture, isPredawn, isToday, monthOf } from "@/lib/slog/calendar";
 import type { DayRecord, DayTodo, LogEntry, LogImage, LogSpan, ViewMode } from "@/lib/slog/types";
 import { cn } from "@/lib/utils";
 import { MarkerIcon } from "./markers";
@@ -135,7 +135,7 @@ export const DayCell = memo(function DayCell({
           )}
           {today ? (
             <span className="shrink-0 rounded-full bg-primary px-1 text-[9px] leading-5 text-primary-foreground">
-              今
+              {isPredawn() ? "昨天" : "今"}
             </span>
           ) : future ? (
             <span className="shrink-0 text-[11px] leading-none text-foreground/40" aria-hidden>

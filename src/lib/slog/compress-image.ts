@@ -78,6 +78,19 @@ async function decodeBitmap(file: File): Promise<ImageBitmap> {
   return bmp;
 }
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("读不到这张图"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function dataUrlFits(fileBytes: number, maxChars: number) {
+  return 32 + Math.ceil((fileBytes * 4) / 3) <= maxChars;
+}
+
 export async function compressImageFile(file: File): Promise<CompressedImage> {
   const looksImage =
     file.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|avif|bmp|heic|heif)$/i.test(file.name);
@@ -86,23 +99,35 @@ export async function compressImageFile(file: File): Promise<CompressedImage> {
 
   const bitmap = await decodeBitmap(file);
   try {
-    let edge = MAX_EDGE;
-    let quality = 0.82;
+    const maxDim = Math.max(bitmap.width, bitmap.height);
+    const keepOriginal =
+      maxDim <= MAX_EDGE &&
+      dataUrlFits(file.size, MAX_CHARS) &&
+      /^(image\/jpeg|image\/png|image\/webp|image\/gif)$/i.test(file.type);
+
     let dataUrl = "";
-    for (let i = 0; i < 12; i++) {
-      try {
-        dataUrl = drawToUrl(bitmap, edge, quality, MAX_CHARS);
-      } catch {
-        dataUrl = "";
+    if (keepOriginal) {
+      dataUrl = await fileToDataUrl(file);
+      if (dataUrl.length > MAX_CHARS) dataUrl = "";
+    }
+    if (!dataUrl) {
+      let edge = MAX_EDGE;
+      let quality = 0.82;
+      for (let i = 0; i < 12; i++) {
+        try {
+          dataUrl = drawToUrl(bitmap, edge, quality, MAX_CHARS);
+        } catch {
+          dataUrl = "";
+        }
+        if (dataUrl && dataUrl.length <= MAX_CHARS) break;
+        if (quality > 0.4) {
+          quality = Math.max(0.4, quality - 0.14);
+          continue;
+        }
+        edge = Math.max(280, Math.round(edge * 0.72));
+        quality = 0.7;
+        if (edge <= 280 && dataUrl) break;
       }
-      if (dataUrl && dataUrl.length <= MAX_CHARS) break;
-      if (quality > 0.4) {
-        quality = Math.max(0.4, quality - 0.14);
-        continue;
-      }
-      edge = Math.max(280, Math.round(edge * 0.72));
-      quality = 0.7;
-      if (edge <= 280 && dataUrl) break;
     }
     if (!dataUrl) throw new Error("这张图处理失败，换一张再试");
     const thumbUrl = drawToUrl(bitmap, THUMB_EDGE, 0.58, THUMB_CHARS);

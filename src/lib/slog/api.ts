@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { sheetRange, toISODate } from "./calendar";
+import { journalISO, sheetRange, toISODate } from "./calendar";
 import { buildDemoSnapshot, emptySnapshot } from "./demo-data";
 import { BACKUP_SCHEMA_VERSION } from "./schema";
 import type {
@@ -319,7 +319,7 @@ export const ensureSeeded = createServerFn({ method: "POST" })
     const existing = await sql<SettingsRow>`select favorite_label, semester_start, seeded from slog_settings where user_id = ${context.userId}`;
     if (existing[0]?.seeded) return readSnapshot(context.userId, sheetKey);
 
-    const today = toISODate(new Date());
+    const today = journalISO();
     const seed = emptySnapshot(sheetKey, today);
 
     await sql`insert into slog_settings (user_id, favorite_label, semester_start, seeded) values (${context.userId}, ${seed.settings.favoriteLabel}, ${seed.settings.semesterStart}, true) on conflict (user_id) do update set seeded = true`;

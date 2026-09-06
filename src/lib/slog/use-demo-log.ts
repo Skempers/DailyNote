@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { buildDemoSnapshot, emptySnapshot } from "./demo-data";
-import { toISODate } from "./calendar";
+import { journalISO } from "./calendar";
 import type { LogSnapshot, SearchHit } from "./types";
 
 function cloneSnap(s: LogSnapshot): LogSnapshot {
@@ -23,13 +23,13 @@ export function useDemoLog(sheetKey: string) {
 
   const snap = useMemo(() => {
     if (bySheet[sheetKey]) return bySheet[sheetKey];
-    return emptySnapshot(sheetKey, toISODate(new Date()));
+    return emptySnapshot(sheetKey, journalISO());
   }, [bySheet, sheetKey]);
 
   const setSnap = useCallback(
     (updater: (prev: LogSnapshot) => LogSnapshot) => {
       setBySheet((prev) => {
-        const current = prev[sheetKey] ?? emptySnapshot(sheetKey, toISODate(new Date()));
+        const current = prev[sheetKey] ?? emptySnapshot(sheetKey, journalISO());
         return { ...prev, [sheetKey]: updater(cloneSnap(current)) };
       });
     },
@@ -88,8 +88,8 @@ export function localSearch(snap: LogSnapshot, q: string): SearchHit[] {
 }
 
 export function defaultSelected(snap: LogSnapshot | undefined) {
-  if (!snap) return toISODate(new Date());
-  const today = toISODate(new Date());
+  if (!snap) return journalISO();
+  const today = journalISO();
   if (snap.days[today] || snap.entries[today] || (snap.images?.[today]?.length ?? 0)) return today;
   const dates = Object.keys(snap.days).sort();
   return dates[Math.floor(dates.length / 2)] ?? today;

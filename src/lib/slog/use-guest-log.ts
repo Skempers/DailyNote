@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { buildDemoSnapshot, emptySnapshot } from "./demo-data";
-import { toISODate } from "./calendar";
+import { journalISO } from "./calendar";
 import type { LogSnapshot } from "./types";
 
 const KEY = "slog-guest-sheets";
@@ -45,13 +45,13 @@ export function useGuestLog(sheetKey: string) {
 
   const snap = useMemo(() => {
     if (bySheet[sheetKey]) return bySheet[sheetKey];
-    return emptySnapshot(sheetKey, toISODate(new Date()));
+    return emptySnapshot(sheetKey, journalISO());
   }, [bySheet, sheetKey]);
 
   const setSnap = useCallback(
     (updater: (prev: LogSnapshot) => LogSnapshot) => {
       setBySheet((prev) => {
-        const current = prev[sheetKey] ?? emptySnapshot(sheetKey, toISODate(new Date()));
+        const current = prev[sheetKey] ?? emptySnapshot(sheetKey, journalISO());
         const next = { ...prev, [sheetKey]: updater(cloneSnap(current)) };
         saveAll(next);
         return next;

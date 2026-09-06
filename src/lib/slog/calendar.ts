@@ -9,7 +9,6 @@ import {
   getISODay,
   isAfter,
   isBefore,
-  isSameDay,
   isWithinInterval,
   startOfMonth,
   startOfWeek,
@@ -19,9 +18,26 @@ import type { SheetKey, ViewMode } from "./types";
 
 export const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"] as const;
 
+export const JOURNAL_HOUR = 4;
+
+export function isPredawn(now = new Date()): boolean {
+  return now.getHours() < JOURNAL_HOUR;
+}
+
+export function journalDate(now = new Date()): Date {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (now.getHours() < JOURNAL_HOUR) d.setDate(d.getDate() - 1);
+  return d;
+}
+
+export function journalISO(now = new Date()): string {
+  return toISODate(journalDate(now));
+}
+
 export function currentSheetKey(now = new Date()): SheetKey {
-  const year = now.getFullYear();
-  const half = now.getMonth() < 6 ? 1 : 2;
+  const d = journalDate(now);
+  const year = d.getFullYear();
+  const half = d.getMonth() < 6 ? 1 : 2;
   return `${year}-H${half}` as SheetKey;
 }
 
@@ -179,11 +195,11 @@ export function stayWeek(
 }
 
 export function isToday(iso: string, now = new Date()): boolean {
-  return isSameDay(parseDate(iso), now);
+  return iso === journalISO(now);
 }
 
 export function isFuture(iso: string, now = new Date()): boolean {
-  return iso > toISODate(now);
+  return iso > journalISO(now);
 }
 
 export function nearbySheets(around = new Date(), back = 3, forward = 1): SheetKey[] {
@@ -256,7 +272,7 @@ export function anchorDate(
   filled: string[] = [],
   now = new Date(),
 ): string {
-  const today = toISODate(now);
+  const today = journalISO(now);
   if (selected && inSheet(selected, sheetKey)) return selected;
   if (inSheet(today, sheetKey)) return today;
   const hits = filled.filter((d) => inSheet(d, sheetKey)).sort();
