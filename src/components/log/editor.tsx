@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, Maximize2, Minimize2, Minus, Plus, Star, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, Maximize2, Minimize2, Minus, Plus, Share2, Star, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { DAY_TONES, ENTRY_KINDS } from "@/lib/slog/types";
 import { cn } from "@/lib/utils";
 import { MARKERS, MarkerIcon } from "./markers";
 import { PhotoGrid } from "./photo-grid";
+import { ShareDayDialog } from "./share-day";
 
 export type DayDraft = {
   day: DayRecord;
@@ -127,6 +128,7 @@ export function DayEditor({
   const [imgBusy, setImgBusy] = useState(false);
   const [calmSaved, setCalmSaved] = useState(true);
   const [editGen, setEditGen] = useState(0);
+  const [shareOpen, setShareOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const journalRef = useRef<HTMLTextAreaElement>(null);
 
@@ -650,6 +652,10 @@ export function DayEditor({
               侧栏填写
             </Button>
           ) : null}
+          <Button type="button" size="sm" variant="secondary" onClick={() => setShareOpen(true)}>
+            <Share2 className="size-3.5" />
+            分享图
+          </Button>
         </div>
       </div>
     </header>
@@ -679,11 +685,25 @@ export function DayEditor({
         )
       : null;
 
+  const shareLayer = (
+    <ShareDayDialog
+      open={shareOpen}
+      onClose={() => setShareOpen(false)}
+      iso={iso}
+      day={day}
+      images={images}
+      todos={filledTodos(todos)}
+      entries={entries}
+      favoriteLabel={favoriteLabel}
+    />
+  );
+
   if (layout === "note") {
     const words = Array.from(day.journal).length;
     return (
       <div className="flex h-full min-h-0 flex-col bg-background">
         {journalWideLayer}
+        {shareLayer}
         <div className="h-1 w-full shrink-0" style={{ background: header.bg }} />
         <header className="flex shrink-0 items-center gap-1 border-b border-border px-1 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
           <button
@@ -702,6 +722,16 @@ export function DayEditor({
               {saveLabel}
             </p>
           </div>
+          <Button
+            type="button"
+            size="icon"
+            variant="secondary"
+            onClick={() => setShareOpen(true)}
+            aria-label="分享图"
+            className="mr-1"
+          >
+            <Share2 className="size-5" />
+          </Button>
           <Button
             type="button"
             size="icon"
@@ -769,6 +799,7 @@ export function DayEditor({
     return (
       <div className="flex h-full min-h-0 flex-col">
         {journalWideLayer}
+        {shareLayer}
         <div className="shrink-0">{chrome}</div>
         <div className="grid min-h-0 flex-1 gap-4 overflow-hidden py-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <div className="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto overscroll-contain pr-1">
@@ -807,6 +838,7 @@ export function DayEditor({
   return (
     <div className="flex h-full min-h-0 flex-col">
       {journalWideLayer}
+      {shareLayer}
       <div className="shrink-0">{chrome}</div>
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto py-3">
         {journalBox}

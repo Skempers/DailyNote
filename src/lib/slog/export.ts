@@ -31,6 +31,34 @@ export function downloadJson(filename: string, data: unknown) {
   downloadBlob(blob, filename);
 }
 
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const [head, body] = dataUrl.split(",");
+  const mime = /data:(.*?);/.exec(head ?? "")?.[1] ?? "image/png";
+  const binary = atob(body ?? "");
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+export async function shareOrDownloadPng(dataUrl: string, filename: string): Promise<"shared" | "saved" | "cancel"> {
+  const blob = dataUrlToBlob(dataUrl);
+  const file = new File([blob], filename, { type: "image/png" });
+  const nav = navigator as Navigator & {
+    canShare?: (data: ShareData) => boolean;
+    share?: (data: ShareData) => Promise<void>;
+  };
+  if (typeof nav.share === "function" && nav.canShare?.({ files: [file] })) {
+    try {
+      await nav.share({ files: [file], title: filename });
+      return "shared";
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return "cancel";
+    }
+  }
+  downloadBlob(blob, filename);
+  return "saved";
+}
+
 export function downloadDataUrl(dataUrl: string, filename: string) {
   const a = document.createElement("a");
   a.href = dataUrl;

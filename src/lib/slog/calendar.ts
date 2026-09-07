@@ -156,6 +156,10 @@ export function formatLong(iso: string): string {
   return format(parseDate(iso), "M月d日 EEEE", { locale: zhCN });
 }
 
+export function formatFull(iso: string): string {
+  return format(parseDate(iso), "yyyy年M月d日 EEEE", { locale: zhCN });
+}
+
 export function formatShort(iso: string): string {
   return format(parseDate(iso), "M/d");
 }
