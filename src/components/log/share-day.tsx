@@ -1,11 +1,11 @@
-import { Check, ImageDown, Share2 } from "lucide-react";
+import { Check, Copy, ImageDown, Share2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { formatFull, monthOf, WEEKDAYS, weekdayIndex, parseDate } from "@/lib/slog/calendar";
 import { headerFill, TONE_COLORS } from "@/lib/slog/colors";
 import { imageThumb } from "@/lib/slog/compress-image";
-import { shareOrDownloadPng } from "@/lib/slog/export";
+import { dataUrlToBlob, shareOrDownloadPng } from "@/lib/slog/export";
 import { DAY_TONES } from "@/lib/slog/types";
 import type { DayRecord, DayTodo, LogEntry, LogImage } from "@/lib/slog/types";
 import { cn } from "@/lib/utils";
@@ -87,8 +87,8 @@ function ShareCard({
   const p3 = (day.p3 ?? []).map((x) => x.trim()).filter(Boolean);
   const filledTodos = todos.filter((t) => t.body.trim());
   const thumbs = images.filter((img) => imageThumb(img));
-  const extra = Math.max(0, thumbs.length - 9);
-  const shown = extra > 0 ? thumbs.slice(0, 9) : thumbs;
+  const extra = Math.max(0, thumbs.length - 18);
+  const shown = extra > 0 ? thumbs.slice(0, 18) : thumbs;
   const journal = (day.journal ?? "").trim();
 
   return (
@@ -116,8 +116,7 @@ function ShareCard({
       ) : null}
 
       <div className="px-8 pt-8 pb-7">
-        <p className="text-[11px] tracking-[0.28em] text-[#1A1714]/45">SLOG · 航海日志</p>
-        <h1 className="mt-2 font-display text-[32px] leading-tight font-medium tracking-tight">
+        <h1 className="font-display text-[32px] leading-tight font-medium tracking-tight">
           {formatFull(iso).replace(` ${weekday}`, "")}
         </h1>
         <p className="mt-1 text-[13px] text-[#1A1714]/55">星期{weekday}</p>
@@ -136,12 +135,12 @@ function ShareCard({
         ) : null}
 
         {flags.photos && shown.length ? (
-          <div className="mt-6 grid grid-cols-3 gap-1.5">
+          <div className="mt-6 grid grid-cols-6 gap-1">
             {shown.map((img, i) => (
               <div key={img.id} className="relative aspect-square overflow-hidden bg-[#e7e0d4]">
                 <img src={imageThumb(img)} alt="" className="absolute inset-0 size-full object-cover" />
                 {extra > 0 && i === shown.length - 1 ? (
-                  <div className="absolute inset-0 grid place-items-center bg-[#1A1714]/45 text-[18px] text-white">
+                  <div className="absolute inset-0 grid place-items-center bg-[#1A1714]/45 text-[11px] text-white">
                     +{extra}
                   </div>
                 ) : null}
@@ -269,6 +268,29 @@ export function ShareDayDialog({
     }
   }
 
+  async function copyImage() {
+    if (!preview) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const blob = dataUrlToBlob(preview);
+      const item = new ClipboardItem({ "image/png": blob });
+      await navigator.clipboard.write([item]);
+      setHint("已复制，可以直接粘贴");
+    } catch {
+      try {
+        const blob = dataUrlToBlob(preview);
+        const item = new ClipboardItem({ "image/png": Promise.resolve(blob) });
+        await navigator.clipboard.write([item]);
+        setHint("已复制，可以直接粘贴");
+      } catch {
+        setErr("这台设备不支持复制图片，用保存 / 分享，或长按预览图");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Dialog
       open={open}
@@ -281,7 +303,10 @@ export function ShareDayDialog({
         }
       }}
     >
-      <DialogContent className="flex max-h-[min(92vh,44rem)] w-[min(100%-1rem,40rem)] flex-col overflow-hidden p-0">
+      <DialogContent
+        overlayClassName="z-[120]"
+        className="z-[120] flex max-h-[min(92vh,44rem)] w-[min(100%-1rem,40rem)] flex-col overflow-hidden p-0"
+      >
         <div className="shrink-0 border-b border-border px-5 py-4">
           <DialogTitle>分享这一天</DialogTitle>
           <DialogDescription className="mt-1">
@@ -354,10 +379,16 @@ export function ShareDayDialog({
             {busy && !preview ? "正在生成…" : preview ? "重新生成" : "生成图片"}
           </Button>
           {preview ? (
-            <Button type="button" disabled={busy} onClick={() => void save()}>
-              <Share2 className="size-3.5" />
-              保存 / 分享
-            </Button>
+            <>
+              <Button type="button" variant="outline" disabled={busy} onClick={() => void copyImage()}>
+                <Copy className="size-3.5" />
+                复制图片
+              </Button>
+              <Button type="button" disabled={busy} onClick={() => void save()}>
+                <Share2 className="size-3.5" />
+                保存 / 分享
+              </Button>
+            </>
           ) : (
             <Button type="button" variant="outline" disabled>
               <ImageDown className="size-3.5" />

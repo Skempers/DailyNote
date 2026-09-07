@@ -21,12 +21,13 @@ export function DialogOverlay({
 
 export function DialogContent({
   className,
+  overlayClassName,
   children,
   ...props
-}: ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) {
+}: ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { overlayClassName?: string }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         className={cn(
           "fixed top-1/2 left-1/2 z-50 w-[min(100%-1.5rem,40rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-card p-5 text-card-foreground shadow-border outline-none",

@@ -323,18 +323,23 @@ export function DayEditor({
           全屏
         </button>
       </div>
-      <Textarea
-        id="journal"
-        ref={journalRef}
-        value={day.journal}
-        onChange={(e) => patchDay({ journal: e.target.value })}
-        onBlur={() => persist({ day, entries, images }, true)}
-        placeholder="直接写。一段话会铺满格子，不用点保存。"
-        className={cn(
-          "min-w-0 resize-none overflow-y-auto whitespace-pre-wrap break-all text-base leading-relaxed",
-          layout === "dock" ? "min-h-[22rem]" : layout === "focus" ? "min-h-0 flex-1" : "min-h-0 flex-1",
-        )}
-      />
+      <div className="relative min-h-0 min-w-0 flex-1">
+        <span className="pointer-events-none absolute top-2 right-2 z-[1] select-none text-[10px] tabular-nums text-muted-foreground/30">
+          {Array.from(day.journal).length} 字
+        </span>
+        <Textarea
+          id="journal"
+          ref={journalRef}
+          value={day.journal}
+          onChange={(e) => patchDay({ journal: e.target.value })}
+          onBlur={() => persist({ day, entries, images }, true)}
+          placeholder="直接写。一段话会铺满格子，不用点保存。"
+          className={cn(
+            "min-w-0 resize-none overflow-y-auto whitespace-pre-wrap break-all pt-7 text-base leading-relaxed",
+            layout === "dock" ? "min-h-[22rem]" : "min-h-0 flex-1",
+          )}
+        />
+      </div>
     </section>
   );
 
@@ -744,7 +749,10 @@ export function DayEditor({
           </Button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="relative min-h-0 flex-1 overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <p className="pointer-events-none absolute top-2 right-5 z-[1] select-none text-[10px] tabular-nums text-muted-foreground/30">
+            {words} 字
+          </p>
           <Textarea
             id="journal"
             ref={journalRef}
@@ -752,7 +760,7 @@ export function DayEditor({
             onChange={(e) => patchDay({ journal: e.target.value })}
             onBlur={() => persist({ day, entries, images }, true)}
             placeholder="开始书写…"
-            className="min-h-[52vh] min-w-0 resize-none rounded-none border-0 bg-transparent px-5 py-4 text-[17px] leading-7 shadow-none focus-visible:ring-0"
+            className="min-h-[52vh] min-w-0 resize-none rounded-none border-0 bg-transparent px-5 pt-7 pb-4 text-[17px] leading-7 shadow-none focus-visible:ring-0"
           />
 
           <section className="border-t border-border px-4 py-4">
