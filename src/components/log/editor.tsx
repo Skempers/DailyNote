@@ -54,6 +54,19 @@ function filledTodos(rows: DayTodo[]): DayTodo[] {
     .filter((t) => t.body);
 }
 
+function padP3(list: string[] | undefined, min = 3): string[] {
+  const rows = [...(list ?? [])];
+  while (rows.length < min) rows.push("");
+  return rows;
+}
+
+function persistP3(rows: string[]): string[] {
+  const next = rows.map((s) => s.trim());
+  while (next.length > 3 && !next[next.length - 1]) next.pop();
+  while (next.length < 3) next.push("");
+  return next;
+}
+
 export function emptyDay(iso: string): DayRecord {
   return {
     id: crypto.randomUUID(),
@@ -71,7 +84,7 @@ function hydrate(iso: string, snap: LogSnapshot, draftNs: string): DayDraft {
   const stored = readDraft(draftNs, iso);
   const existing = preferDraft(snap.days[iso], stored);
   const day = existing
-    ? { ...existing, p3: [...(existing.p3 ?? []), "", "", ""].slice(0, 3), journal: existing.journal ?? "" }
+    ? { ...existing, p3: padP3(existing.p3), journal: existing.journal ?? "" }
     : emptyDay(iso);
   const entries = stored && !snap.days[iso]?.journal && stored.entries.length
     ? stored.entries
@@ -123,7 +136,6 @@ export function DayEditor({
   const [kind, setKind] = useState<EntryKind>("ordinary");
   const [marker, setMarker] = useState<EntryMarker | null>(null);
   const [emphasis, setEmphasis] = useState<Emphasis>("normal");
-  const [metaOpen, setMetaOpen] = useState(layout === "focus");
   const [imgError, setImgError] = useState<string | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
   const [calmSaved, setCalmSaved] = useState(true);
@@ -140,7 +152,6 @@ export function DayEditor({
     setTodos(padTodoRows(next.todos, iso));
     setBody("");
     setJournalWide(false);
-    setMetaOpen(layout === "focus");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iso]);
 
@@ -306,7 +317,7 @@ export function DayEditor({
       className={cn(
         "flex min-w-0 flex-col px-0.5",
         layout === "focus"
-          ? "h-[calc(100%-13rem)] min-h-[18rem] shrink-0"
+          ? "min-h-[min(70vh,36rem)] flex-1"
           : layout === "dock"
             ? "min-h-[24rem] shrink-0"
             : "min-h-0 flex-1",
@@ -323,7 +334,7 @@ export function DayEditor({
           全屏
         </button>
       </div>
-      <div className="relative min-h-0 min-w-0 flex-1">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <span className="pointer-events-none absolute top-2 right-2 z-[1] select-none text-[10px] tabular-nums text-muted-foreground/30">
           {Array.from(day.journal).length} 字
         </span>
@@ -335,8 +346,8 @@ export function DayEditor({
           onBlur={() => persist({ day, entries, images }, true)}
           placeholder="直接写。一段话会铺满格子，不用点保存。"
           className={cn(
-            "min-w-0 resize-none overflow-y-auto whitespace-pre-wrap break-all pt-7 text-base leading-relaxed",
-            layout === "dock" ? "min-h-[22rem]" : "min-h-0 flex-1",
+            "min-w-0 flex-1 resize-none overflow-y-auto whitespace-pre-wrap break-all pt-7 text-base leading-relaxed",
+            layout === "dock" ? "min-h-[22rem]" : "h-full min-h-[28rem]",
           )}
         />
       </div>
@@ -523,26 +534,64 @@ export function DayEditor({
           />
         </div>
       </div>
-
-      <section>
-        <Label>P3 · 今天最重要的三件事</Label>
-        <div className="mt-1.5 grid gap-1.5">
-          {[0, 1, 2].map((i) => (
-            <Input
-              key={i}
-              className="h-9"
-              value={day.p3[i] ?? ""}
-              placeholder={i === 0 ? "第一件" : i === 1 ? "第二件" : "第三件"}
-              onChange={(e) => {
-                const p3 = [...day.p3];
-                p3[i] = e.target.value;
-                patchDay({ p3 });
-              }}
-            />
-          ))}
-        </div>
-      </section>
     </div>
+  );
+
+  function addP3Row() {
+    patchDay({ p3: [...day.p3, ""] }, true);
+  }
+
+  function dropLastP3() {
+    if (day.p3.length <= 3) return;
+    if (day.p3[day.p3.length - 1]?.trim()) return;
+    patchDay({ p3: persistP3(day.p3.slice(0, -1)) }, true);
+  }
+
+  const p3Box = (
+    <section className="mt-2 flex min-w-0 shrink-0 flex-col">
+      <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2">
+        <Label>今天最重要的事</Label>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="inline-flex items-center gap-0.5 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40"
+            onClick={dropLastP3}
+            disabled={day.p3.length <= 3 || Boolean(day.p3[day.p3.length - 1]?.trim())}
+          >
+            <Minus className="size-3" />
+            减少
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-0.5 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+            onClick={addP3Row}
+          >
+            <Plus className="size-3" />
+            添加
+          </button>
+        </div>
+      </div>
+      <div className="grid gap-1.5">
+        {day.p3.map((item, i) => (
+          <Input
+            key={i}
+            className="h-9"
+            value={item}
+            placeholder={`第${i + 1}件`}
+            onChange={(e) => {
+              const p3 = [...day.p3];
+              p3[i] = e.target.value;
+              patchDay({ p3 });
+            }}
+            onBlur={(e) => {
+              const p3 = [...day.p3];
+              p3[i] = e.target.value;
+              patchDay({ p3: persistP3(p3) }, true);
+            }}
+          />
+        ))}
+      </div>
+    </section>
   );
 
   const entriesBox = (
@@ -793,6 +842,7 @@ export function DayEditor({
           </section>
 
           <section className="border-t border-border px-4 py-4">{todoBox}</section>
+          <section className="border-t border-border px-4 py-4">{p3Box}</section>
 
           <div className="border-t border-border px-4 py-4">
             {metaBox}
@@ -816,6 +866,7 @@ export function DayEditor({
             {todoBox}
           </div>
           <div className="min-h-0 min-w-0 overflow-y-auto overscroll-contain lg:border-l lg:border-border lg:pl-4">
+            {p3Box}
             {metaBox}
             <div className="mt-4">{entriesBox}</div>
           </div>
@@ -851,16 +902,10 @@ export function DayEditor({
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto py-3">
         {journalBox}
         {imageBox}
+        {p3Box}
         {todoBox}
         <div className="mt-3 border-t border-border pt-2">
-          <button
-            type="button"
-            onClick={() => setMetaOpen((v) => !v)}
-            className="text-left text-xs font-medium text-muted-foreground hover:text-foreground"
-          >
-            {metaOpen ? "收起颜色与 P3" : "颜色 · 标题 · P3"}
-          </button>
-          {metaOpen ? <div className="mt-2">{metaBox}</div> : null}
+          {metaBox}
           <div className="mt-3">{entriesBox}</div>
         </div>
       </div>

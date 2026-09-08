@@ -43,7 +43,7 @@ export const DayCell = memo(function DayCell({
   const dateNum = Number(iso.slice(8, 10));
   const wash = tone === "month" ? undefined : TONE_COLORS[tone].wash;
   const journal = (day?.journal ?? "").trim();
-  const p3 = (day?.p3 ?? []).filter(Boolean).slice(0, 3);
+  const p3 = (day?.p3 ?? []).filter(Boolean);
   const compact = density === "overview" || density === "year";
   const tiny = density === "year";
   const thumbMax = density === "week" ? 9 : density === "month" ? 6 : compact ? 0 : 6;

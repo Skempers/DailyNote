@@ -35,7 +35,7 @@ const DEFAULT_FLAGS: ShareFlags = {
 const OPTIONS: { key: keyof ShareFlags; label: string; hint: string; def: boolean }[] = [
   { key: "journal", label: "正文", hint: "这一天写的主要内容", def: true },
   { key: "photos", label: "照片", hint: "当日缩略图", def: true },
-  { key: "p3", label: "三件要紧事", hint: "P3", def: true },
+  { key: "p3", label: "要紧事", hint: "今天最重要的事", def: true },
   { key: "header", label: "小标题", hint: "格子上那一行", def: false },
   { key: "location", label: "地点", hint: "", def: false },
   { key: "todos", label: "待办", hint: "当天待办条目", def: false },
@@ -151,7 +151,7 @@ function ShareCard({
 
         {flags.p3 && p3.length ? (
           <div className="mt-7">
-            <p className="text-[11px] tracking-[0.2em] text-[#1A1714]/45">今日三件要紧事</p>
+            <p className="text-[11px] tracking-[0.2em] text-[#1A1714]/45">今日要紧事</p>
             <ol className="mt-2 space-y-2">
               {p3.map((item, i) => (
                 <li key={i} className="flex gap-3 text-[15px] leading-snug">
@@ -310,7 +310,7 @@ export function ShareDayDialog({
         <div className="shrink-0 border-b border-border px-5 py-4">
           <DialogTitle>分享这一天</DialogTitle>
           <DialogDescription className="mt-1">
-            生成一张图，不存到服务器。勾选要放进去的内容，默认是正文、照片和三件要紧事。
+            生成一张图，不存到服务器。勾选要放进去的内容，默认是正文、照片和要紧事。
           </DialogDescription>
         </div>
 
