@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { formatFull, monthOf, WEEKDAYS, weekdayIndex, parseDate } from "@/lib/slog/calendar";
 import { headerFill, TONE_COLORS } from "@/lib/slog/colors";
 import { imageThumb } from "@/lib/slog/compress-image";
-import { dataUrlToBlob, shareOrDownloadPng } from "@/lib/slog/export";
+import { dataUrlToBlob, downloadPng, sharePng } from "@/lib/slog/export";
 import { DAY_TONES } from "@/lib/slog/types";
 import type { DayRecord, DayTodo, LogEntry, LogImage } from "@/lib/slog/types";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,11 @@ const OPTIONS: { key: keyof ShareFlags; label: string; hint: string; def: boolea
   { key: "color", label: "颜色", hint: "这一天的主色 / 次色", def: false },
   { key: "entries", label: "格子小条", hint: "分类写入格子的那些", def: false },
 ];
+
+function isAppleTouch() {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
 
 function toneName(id: string | null | undefined, favoriteLabel: string) {
   if (!id || id === "month") return "月份底色";
@@ -254,15 +259,37 @@ export function ShareDayDialog({
     }
   }
 
-  async function save() {
+  async function saveToAlbum() {
     if (!preview) return;
     setBusy(true);
+    setErr(null);
     try {
-      const result = await shareOrDownloadPng(preview, filename);
-      if (result === "shared") setHint("已交给系统分享");
-      if (result === "saved") setHint("图片已保存到下载");
+      if (isAppleTouch()) {
+        const result = await sharePng(preview, filename);
+        if (result === "shared") setHint("在弹出的菜单里点「存储图像」，就会进系统相册。");
+        else if (result === "cancel") setHint("也可以长按上面的预览图，选「存储图像」。");
+        else setHint("已开始下载。若没进相册，长按预览图选「存储图像」。");
+        return;
+      }
+      downloadPng(preview, filename);
+      setHint("图片已保存到下载，相册里一般也能看到。");
     } catch {
-      setErr("保存失败了，长按预览图也可以存");
+      setErr("保存失败了，长按上面的预览图也可以存进相册");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function shareOut() {
+    if (!preview) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const result = await sharePng(preview, filename);
+      if (result === "shared") setHint("已交给系统分享");
+      if (result === "saved") setHint("这台设备没有分享面板，已改为下载");
+    } catch {
+      setErr("分享失败了，试试保存到相册，或长按预览图");
     } finally {
       setBusy(false);
     }
@@ -284,7 +311,7 @@ export function ShareDayDialog({
         await navigator.clipboard.write([item]);
         setHint("已复制，可以直接粘贴");
       } catch {
-        setErr("这台设备不支持复制图片，用保存 / 分享，或长按预览图");
+        setErr("这台设备不支持复制图片，用保存到相册，或长按预览图");
       }
     } finally {
       setBusy(false);
@@ -371,30 +398,31 @@ export function ShareDayDialog({
           {hint ? <p className="mt-2 text-xs text-muted-foreground">{hint}</p> : null}
         </div>
 
-        <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border px-5 py-3">
-          <Button type="button" variant="outline" onClick={onClose}>
-            关闭
-          </Button>
-          <Button type="button" variant={preview ? "outline" : "default"} disabled={busy} onClick={() => void generate()}>
-            {busy && !preview ? "正在生成…" : preview ? "重新生成" : "生成图片"}
-          </Button>
+        <div className="flex shrink-0 flex-col gap-2 border-t border-border px-5 py-3">
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              关闭
+            </Button>
+            <Button type="button" variant={preview ? "outline" : "default"} disabled={busy} onClick={() => void generate()}>
+              {busy && !preview ? "正在生成…" : preview ? "重新生成" : "生成图片"}
+            </Button>
+          </div>
           {preview ? (
-            <>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
               <Button type="button" variant="outline" disabled={busy} onClick={() => void copyImage()}>
                 <Copy className="size-3.5" />
-                复制图片
+                复制
               </Button>
-              <Button type="button" disabled={busy} onClick={() => void save()}>
+              <Button type="button" variant="outline" disabled={busy} onClick={() => void shareOut()}>
                 <Share2 className="size-3.5" />
-                保存 / 分享
+                分享
               </Button>
-            </>
-          ) : (
-            <Button type="button" variant="outline" disabled>
-              <ImageDown className="size-3.5" />
-              保存 / 分享
-            </Button>
-          )}
+              <Button type="button" className="col-span-2 sm:col-span-1" disabled={busy} onClick={() => void saveToAlbum()}>
+                <ImageDown className="size-3.5" />
+                保存到相册
+              </Button>
+            </div>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

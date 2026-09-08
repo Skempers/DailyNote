@@ -40,7 +40,11 @@ export function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([bytes], { type: mime });
 }
 
-export async function shareOrDownloadPng(dataUrl: string, filename: string): Promise<"shared" | "saved" | "cancel"> {
+export function downloadPng(dataUrl: string, filename: string) {
+  downloadBlob(dataUrlToBlob(dataUrl), filename);
+}
+
+export async function sharePng(dataUrl: string, filename: string): Promise<"shared" | "saved" | "cancel"> {
   const blob = dataUrlToBlob(dataUrl);
   const file = new File([blob], filename, { type: "image/png" });
   const nav = navigator as Navigator & {
@@ -57,6 +61,10 @@ export async function shareOrDownloadPng(dataUrl: string, filename: string): Pro
   }
   downloadBlob(blob, filename);
   return "saved";
+}
+
+export async function shareOrDownloadPng(dataUrl: string, filename: string): Promise<"shared" | "saved" | "cancel"> {
+  return sharePng(dataUrl, filename);
 }
 
 export function downloadDataUrl(dataUrl: string, filename: string) {
