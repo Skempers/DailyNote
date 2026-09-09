@@ -143,6 +143,7 @@ export function DayEditor({
   const [shareOpen, setShareOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const journalRef = useRef<HTMLTextAreaElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const next = hydrate(iso, snap, draftNs);
@@ -215,6 +216,17 @@ export function DayEditor({
     const nextDay = { ...day, ...partial };
     setDay(nextDay);
     persist({ day: nextDay, entries, images }, immediate);
+  }
+
+  function patchJournal(value: string) {
+    const page = pageRef.current;
+    const y = page?.scrollTop ?? 0;
+    patchDay({ journal: value });
+    if (!page) return;
+    page.scrollTop = y;
+    requestAnimationFrame(() => {
+      page.scrollTop = y;
+    });
   }
 
   function addEntry(nextKind: EntryKind = kind) {
@@ -798,19 +810,25 @@ export function DayEditor({
           </Button>
         </header>
 
-        <div className="relative min-h-0 flex-1 overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-          <p className="pointer-events-none absolute top-2 right-5 z-[1] select-none text-[10px] tabular-nums text-muted-foreground/30">
-            {words} 字
-          </p>
-          <Textarea
-            id="journal"
-            ref={journalRef}
-            value={day.journal}
-            onChange={(e) => patchDay({ journal: e.target.value })}
-            onBlur={() => persist({ day, entries, images }, true)}
-            placeholder="开始书写…"
-            className="min-h-[52vh] min-w-0 resize-none rounded-none border-0 bg-transparent px-5 pt-7 pb-4 text-[17px] leading-7 shadow-none focus-visible:ring-0"
-          />
+        <div
+          ref={pageRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[max(1.5rem,env(safe-area-inset-bottom))] [overflow-anchor:none]"
+        >
+          <div className="relative flex h-full min-h-full flex-col">
+            <p className="pointer-events-none absolute top-2 right-5 z-[1] select-none text-[10px] tabular-nums text-muted-foreground/30">
+              {words} 字
+            </p>
+            <Textarea
+              id="journal"
+              ref={journalRef}
+              value={day.journal}
+              onChange={(e) => patchJournal(e.target.value)}
+              onBlur={() => persist({ day, entries, images }, true)}
+              placeholder="开始书写…"
+              style={{ fieldSizing: "fixed" }}
+              className="h-full min-h-full min-w-0 flex-1 resize-none overflow-y-auto rounded-none border-0 bg-transparent px-5 pt-7 pb-4 text-[17px] leading-7 shadow-none focus-visible:ring-0"
+            />
+          </div>
 
           <section className="border-t border-border px-4 py-4">
             <div className="mb-2 flex items-center justify-between">

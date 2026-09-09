@@ -7,7 +7,7 @@ import {
   Search,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   Group as ResizableGroup,
@@ -77,6 +77,39 @@ export type LogAdapter = {
   draftNs?: string;
   guest?: boolean;
 };
+
+function ViewportOverlay({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const apply = () => {
+      const vv = window.visualViewport;
+      el.style.height = `${vv?.height ?? window.innerHeight}px`;
+      el.style.top = `${vv?.offsetTop ?? 0}px`;
+    };
+    apply();
+    window.visualViewport?.addEventListener("resize", apply);
+    window.visualViewport?.addEventListener("scroll", apply);
+    window.addEventListener("resize", apply);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", apply);
+      window.visualViewport?.removeEventListener("scroll", apply);
+      window.removeEventListener("resize", apply);
+    };
+  }, []);
+  return (
+    <div ref={ref} className={cn("fixed inset-x-0 top-0 flex flex-col bg-background", className)}>
+      {children}
+    </div>
+  );
+}
 
 function readView(): ViewMode {
   if (typeof window === "undefined") return "half";
@@ -715,9 +748,7 @@ export function LogWorkspace({
   const noteOverlay =
     showNote && typeof document !== "undefined"
       ? createPortal(
-          <div className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-background">
-            {editor}
-          </div>,
+          <ViewportOverlay className="z-[70]">{editor}</ViewportOverlay>,
           document.body,
         )
       : null;
